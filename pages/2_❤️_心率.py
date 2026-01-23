@@ -1,0 +1,96 @@
+import streamlit as st
+from firebase_utils import db
+from datetime import datetime, timedelta
+from write_records import add_heartrate_record
+from export_records import get_user_records
+
+st.set_page_config(page_title="血壓心率紀錄", page_icon="❤️", layout="wide")
+
+# 檢查登入狀態
+if "logged_in" not in st.session_state or not st.session_state.logged_in:
+    st.warning("請先登入！")
+    st.page_link("app.py", label="🔙 返回登入頁面")
+    st.stop()
+
+user_id = st.session_state.user_id
+
+st.title("❤️ 血壓心率紀錄")
+st.markdown(f"**學員編號：** {user_id}")
+
+# ===== Tab 切換 =====
+tab1, tab2 = st.tabs(["📝 新增紀錄", "📋 歷史紀錄"])
+
+# ==================== Tab 1: 新增紀錄 ====================
+with tab1:
+    st.subheader("新增血壓心率紀錄")
+
+    # 輸入欄位
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        mmHg1 = st.number_input("收縮壓 (mmHg)", min_value=50, max_value=250, value=120, step=1)
+    with col2:
+        mmHg2 = st.number_input("舒張壓 (mmHg)", min_value=30, max_value=150, value=80, step=1)
+    with col3:
+        bpm = st.number_input("心跳 (bpm)", min_value=30, max_value=200, value=72, step=1)
+
+    # 血壓判讀提示
+    st.markdown("---")
+    if mmHg1 < 90 or mmHg2 < 60:
+        st.info("💙 血壓偏低")
+    elif mmHg1 < 120 and mmHg2 < 80:
+        st.success("💚 血壓正常")
+    elif mmHg1 < 140 or mmHg2 < 90:
+        st.warning("💛 血壓偏高（注意）")
+    else:
+        st.error("❤️ 血壓過高（請諮詢醫師）")
+
+    # 儲存按鈕
+    st.markdown("---")
+    if st.button("✅ 儲存紀錄", use_container_width=True, type="primary"):
+        add_heartrate_record(user_id, mmHg1, mmHg2, bpm)
+        st.success(f"已儲存！血壓 {mmHg1}/{mmHg2} mmHg，心跳 {bpm} bpm")
+        st.rerun()
+
+# ==================== Tab 2: 歷史紀錄 ====================
+with tab2:
+    st.subheader("歷史血壓心率紀錄")
+
+    # 日期篩選
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date = st.date_input("開始日期", value=datetime.now().date() - timedelta(days=7), key="hr_start")
+    with col2:
+        end_date = st.date_input("結束日期", value=datetime.now().date(), key="hr_end")
+
+    # 取得紀錄
+    records = get_user_records(user_id, "HeartRate", start_date=start_date, end_date=end_date)
+
+    if not records:
+        st.info("這段期間沒有血壓心率紀錄")
+    else:
+        st.markdown(f"共 **{len(records)}** 筆紀錄")
+
+        # 顯示紀錄
+        for r in reversed(records):  # 最新的在上面
+            filltime = r.get("filltime", "")
+            mmHg1 = r.get("mmHg1", "")
+            mmHg2 = r.get("mmHg2", "")
+            bpm = r.get("bpm", "")
+
+            col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+            with col1:
+                st.write(f"📅 {filltime}")
+            with col2:
+                st.write(f"🩺 {mmHg1}/{mmHg2} mmHg")
+            with col3:
+                st.write(f"💓 {bpm} bpm")
+            with col4:
+                if st.button("🗑️", key=f"del_hr_{filltime}"):
+                    db.reference(f"HeartRate/{user_id}/{filltime}").delete()
+                    st.success("已刪除")
+                    st.rerun()
+
+# ===== 返回首頁 =====
+st.markdown("---")
+st.page_link("app.py", label="🏠 返回首頁")

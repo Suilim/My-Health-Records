@@ -14,13 +14,70 @@ if "logged_in" not in st.session_state or not st.session_state.logged_in:
 
 user_id = st.session_state.user_id
 
+# 檢查是否為補填模式
+backfill_date = st.session_state.get("backfill_date", None)
+if backfill_date:
+    # 清除 backfill_date，避免重複使用
+    is_backfill = True
+    fill_date = backfill_date
+else:
+    is_backfill = False
+    fill_date = datetime.now().strftime("%Y-%m-%d")
+
 # 初始化 session state
 if "drug_list" not in st.session_state:
     st.session_state.drug_list = []  # 待新增的藥物清單
 if "edit_mode" not in st.session_state:
     st.session_state.edit_mode = None  # 編輯中的紀錄 filltime
+if "last_loaded_time" not in st.session_state:
+    st.session_state.last_loaded_time = None  # 記錄上次自動帶入的時段
+if "last_loaded_date" not in st.session_state:
+    st.session_state.last_loaded_date = None  # 記錄上次自動帶入的日期
+
+
+def get_latest_drugs_by_eattime(user_id, eattime, before_date=None):
+    """取得最近一次同時段的用藥紀錄
+
+    參數:
+        before_date: 只取這個日期「之前」的紀錄（不含當天），用於補填時避免帶入當天或未來的紀錄
+    """
+    # 取得所有用藥紀錄（不限日期範圍，確保能找到最近的）
+    records = get_user_records(user_id, "Drug")
+
+    if not records:
+        return []
+
+    # 篩選同時段的藥物，並排除指定日期及之後的紀錄
+    same_time_drugs = []
+    for r in records:
+        # 比對時段時，去除可能的空白
+        record_eattime = r.get("eattime", "").strip()
+        if record_eattime != eattime:
+            continue
+        record_date = r["filltime"].split(" ")[0]
+        # 只保留 before_date 之前的紀錄
+        if before_date and record_date >= before_date:
+            continue
+        same_time_drugs.append(r)
+
+    if not same_time_drugs:
+        return []
+
+    # 找到最近一天的日期
+    latest_date = max(r["filltime"].split(" ")[0] for r in same_time_drugs)
+
+    # 取出該天同時段的所有藥物
+    latest_drugs = [
+        {"name": r["drugname"], "pieces": r["drugpieces"], "eattime": eattime}
+        for r in same_time_drugs
+        if r["filltime"].split(" ")[0] == latest_date
+    ]
+
+    return latest_drugs
 
 st.title("💊 用藥紀錄")
+if is_backfill:
+    st.warning(f"📝 補填日期：**{fill_date}**")
 st.markdown(f"**學員編號：** {user_id}")
 
 # ===== Tab 切換 =====
@@ -30,65 +87,85 @@ tab1, tab2 = st.tabs(["📝 新增紀錄", "📋 歷史紀錄"])
 with tab1:
     st.subheader("新增用藥紀錄")
 
-    # ----- 拷貝前一天資料 -----
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        selected_time = st.selectbox(
-            "服藥時段",
-            ["早", "午", "晚", "睡前"],
-            key="new_eat_time"
-        )
-    with col2:
-        if st.button("📋 拷貝前一天", use_container_width=True):
-            # 取得昨天的紀錄
-            yesterday = (datetime.now() - timedelta(days=1)).date()
-            records = get_user_records(user_id, "Drug", start_date=yesterday, end_date=yesterday)
+    # ----- 選擇時段（自動帶入最近同時段紀錄）-----
+    selected_time = st.selectbox(
+        "服藥時段",
+        ["早", "午", "晚", "睡前"],
+        key="new_eat_time"
+    )
 
-            # 篩選同時段的藥物
-            same_time_drugs = [r for r in records if r.get("eattime") == selected_time]
+    # 當時段或日期改變時，自動帶入最近一次同時段的藥物（只取填寫日期之前的紀錄）
+    time_changed = selected_time != st.session_state.last_loaded_time
+    date_changed = fill_date != st.session_state.last_loaded_date
 
-            if same_time_drugs:
-                st.session_state.drug_list = [
-                    {"name": r["drugname"], "pieces": r["drugpieces"], "eattime": selected_time}
-                    for r in same_time_drugs
-                ]
-                st.success(f"已帶入昨天 {selected_time} 的 {len(same_time_drugs)} 筆藥物紀錄")
-                st.rerun()
-            else:
-                st.warning(f"昨天 {selected_time} 沒有用藥紀錄")
+    if time_changed or date_changed:
+        latest_drugs = get_latest_drugs_by_eattime(user_id, selected_time, before_date=fill_date)
+        if latest_drugs:
+            st.session_state.drug_list = latest_drugs
+        else:
+            st.session_state.drug_list = []
+        st.session_state.last_loaded_time = selected_time
+        st.session_state.last_loaded_date = fill_date
+        if time_changed or date_changed:
+            st.rerun()
 
     st.markdown("---")
 
     # ----- 藥物清單編輯區 -----
     st.markdown("**藥物清單：**")
 
+    # 初始化編輯模式
+    if "editing_drug_index" not in st.session_state:
+        st.session_state.editing_drug_index = None
+
     # 顯示目前的藥物清單
     if st.session_state.drug_list:
         for i, drug in enumerate(st.session_state.drug_list):
-            col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-            with col1:
-                new_name = st.text_input(
-                    "藥名",
-                    value=drug["name"],
-                    key=f"drug_name_{i}",
-                    label_visibility="collapsed"
-                )
-                st.session_state.drug_list[i]["name"] = new_name
-            with col2:
-                new_pieces = st.number_input(
-                    "數量",
-                    value=int(drug["pieces"]) if str(drug["pieces"]).isdigit() else 1,
-                    min_value=1,
-                    key=f"drug_pieces_{i}",
-                    label_visibility="collapsed"
-                )
-                st.session_state.drug_list[i]["pieces"] = new_pieces
-            with col3:
-                st.write(f"({drug['eattime']})")
-            with col4:
-                if st.button("🗑️", key=f"delete_new_{i}"):
-                    st.session_state.drug_list.pop(i)
-                    st.rerun()
+            # 判斷是否在編輯模式
+            if st.session_state.editing_drug_index == i:
+                # 編輯模式
+                col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+                with col1:
+                    edit_name = st.text_input(
+                        "藥名",
+                        value=drug["name"],
+                        key=f"edit_drug_name_{i}",
+                        label_visibility="collapsed"
+                    )
+                with col2:
+                    edit_pieces = st.number_input(
+                        "數量",
+                        value=int(drug["pieces"]) if str(drug["pieces"]).isdigit() else 1,
+                        min_value=1,
+                        key=f"edit_drug_pieces_{i}",
+                        label_visibility="collapsed"
+                    )
+                with col3:
+                    if st.button("💾", key=f"save_drug_{i}"):
+                        st.session_state.drug_list[i]["name"] = edit_name
+                        st.session_state.drug_list[i]["pieces"] = edit_pieces
+                        st.session_state.editing_drug_index = None
+                        st.rerun()
+                with col4:
+                    if st.button("❌", key=f"cancel_drug_{i}"):
+                        st.session_state.editing_drug_index = None
+                        st.rerun()
+            else:
+                # 顯示模式
+                col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+                with col1:
+                    st.write(f"💊 **{drug['name']}**")
+                with col2:
+                    st.write(f"x {drug['pieces']}")
+                with col3:
+                    if st.button("✏️", key=f"edit_drug_{i}"):
+                        st.session_state.editing_drug_index = i
+                        st.rerun()
+                with col4:
+                    if st.button("🗑️", key=f"delete_drug_{i}"):
+                        st.session_state.drug_list.pop(i)
+                        st.session_state.editing_drug_index = None
+                        st.rerun()
     else:
         st.info("尚未新增藥物，請點擊下方按鈕新增")
 
@@ -119,10 +196,16 @@ with tab1:
     with col1:
         if st.button("✅ 儲存全部", use_container_width=True, type="primary", disabled=len(st.session_state.drug_list) == 0):
             if st.session_state.drug_list:
-                add_drug_records_batch(user_id, st.session_state.drug_list)
-                st.success(f"已儲存 {len(st.session_state.drug_list)} 筆用藥紀錄！")
+                # 補填模式用指定日期 + 12:00，否則用當前時間
+                if is_backfill:
+                    save_filltime = f"{fill_date} 12:00"
+                else:
+                    save_filltime = datetime.now().strftime("%Y-%m-%d %H:%M")
+                add_drug_records_batch(user_id, st.session_state.drug_list, filltime=save_filltime)
                 st.session_state.drug_list = []  # 清空清單
-                st.rerun()
+                if "backfill_date" in st.session_state:
+                    del st.session_state.backfill_date
+                st.switch_page("app.py")
     with col2:
         if st.button("🗑️ 清空清單", use_container_width=True, disabled=len(st.session_state.drug_list) == 0):
             st.session_state.drug_list = []

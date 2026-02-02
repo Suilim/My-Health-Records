@@ -14,7 +14,18 @@ if "logged_in" not in st.session_state or not st.session_state.logged_in:
 
 user_id = st.session_state.user_id
 
+# 檢查是否為補填模式
+backfill_date = st.session_state.get("backfill_date", None)
+if backfill_date:
+    is_backfill = True
+    fill_date = backfill_date
+else:
+    is_backfill = False
+    fill_date = datetime.now().strftime("%Y-%m-%d")
+
 st.title("🩸 血糖紀錄")
+if is_backfill:
+    st.warning(f"📝 補填日期：**{fill_date}**")
 st.markdown(f"**學員編號：** {user_id}")
 
 # ===== Tab 切換 =====
@@ -25,27 +36,37 @@ with tab1:
     st.subheader("新增血糖紀錄")
 
     # 輸入欄位
-    sugar_level = st.number_input("血糖值 (mg/dL)", min_value=20, max_value=600, value=100, step=1)
+    sugar_level = st.number_input("血糖值 (mg/dL)", min_value=20, max_value=600, value=None, step=1, placeholder="請輸入")
 
     # 血糖判讀提示
     st.markdown("---")
-    if sugar_level < 70:
-        st.error("⚠️ 血糖過低（請注意低血糖症狀）")
-    elif sugar_level < 100:
-        st.success("💚 空腹血糖正常")
-    elif sugar_level < 126:
-        st.warning("💛 空腹血糖偏高（糖尿病前期）")
-    else:
-        st.error("❤️ 血糖過高（請諮詢醫師）")
+    if sugar_level is not None:
+        if sugar_level < 70:
+            st.error("⚠️ 血糖過低（請注意低血糖症狀）")
+        elif sugar_level < 100:
+            st.success("💚 空腹血糖正常")
+        elif sugar_level < 126:
+            st.warning("💛 空腹血糖偏高（糖尿病前期）")
+        else:
+            st.error("❤️ 血糖過高（請諮詢醫師）")
 
     st.caption("※ 以上為空腹血糖參考值，飯後血糖標準不同")
 
     # 儲存按鈕
     st.markdown("---")
     if st.button("✅ 儲存紀錄", use_container_width=True, type="primary"):
-        add_sugar_record(user_id, sugar_level)
-        st.success(f"已儲存！血糖 {sugar_level} mg/dL")
-        st.rerun()
+        if sugar_level is None:
+            st.warning("請填寫血糖值")
+        else:
+            # 補填模式用指定日期 + 12:00，否則用當前時間
+            if is_backfill:
+                save_filltime = f"{fill_date} 12:00"
+            else:
+                save_filltime = datetime.now().strftime("%Y-%m-%d %H:%M")
+            add_sugar_record(user_id, sugar_level, filltime=save_filltime)
+            if "backfill_date" in st.session_state:
+                del st.session_state.backfill_date
+            st.switch_page("app.py")
 
 # ==================== Tab 2: 歷史紀錄 ====================
 with tab2:

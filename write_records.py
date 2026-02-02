@@ -73,6 +73,66 @@ def add_weight_record(user_id, weight, waist, filltime=None):
     })
     print(f"體重紀錄寫入完成: {user_id} - 體重:{weight} 腰圍:{waist}")
 
+# ========== 體脂 ==========
+def add_bodyfat_record(user_id, bodyfat, filltime=None):
+    """
+    新增體脂紀錄
+    路徑: BodyFat/{userId}/{filltime}
+
+    參數:
+        bodyfat: 體脂率 (%)
+    """
+    if filltime is None:
+        filltime = _get_current_filltime()
+
+    ref = db.reference(f'BodyFat/{user_id}/{filltime}')
+    ref.set({
+        "id": str(user_id),
+        "bodyfat": str(bodyfat),
+        "filltime": str(filltime)
+    })
+    print(f"體脂紀錄寫入完成: {user_id} - {bodyfat}%")
+
+
+# ========== 骨骼肌 ==========
+def add_muscle_record(user_id, muscle, filltime=None):
+    """
+    新增骨骼肌紀錄
+    路徑: Muscle/{userId}/{filltime}
+
+    參數:
+        muscle: 骨骼肌率 (%)
+    """
+    if filltime is None:
+        filltime = _get_current_filltime()
+
+    ref = db.reference(f'Muscle/{user_id}/{filltime}')
+    ref.set({
+        "id": str(user_id),
+        "muscle": str(muscle),
+        "filltime": str(filltime)
+    })
+    print(f"骨骼肌紀錄寫入完成: {user_id} - {muscle}%")
+
+# ========== BMI ==========
+def add_bmi_record(user_id, bmi, filltime=None):
+    """
+    新增 BMI 紀錄
+    路徑: BMI/{userId}/{filltime}
+
+    參數:
+        bmi: BMI 值
+    """
+    if filltime is None:
+        filltime = _get_current_filltime()
+
+    ref = db.reference(f'BMI/{user_id}/{filltime}')
+    ref.set({
+        "id": str(user_id),
+        "bmi": str(bmi),
+        "filltime": str(filltime)
+    })
+    print(f"BMI 紀錄寫入完成: {user_id} - {bmi}")
 
 # ========== 血壓心率 ==========
 def add_heartrate_record(user_id, mmHg1, mmHg2, bpm, filltime=None):
@@ -98,7 +158,6 @@ def add_heartrate_record(user_id, mmHg1, mmHg2, bpm, filltime=None):
     })
     print(f"血壓心率紀錄寫入完成: {user_id} - {mmHg1}/{mmHg2} mmHg, {bpm} bpm")
 
-
 # ========== 體溫 ==========
 def add_temp_record(user_id, temp, filltime=None):
     """
@@ -115,7 +174,6 @@ def add_temp_record(user_id, temp, filltime=None):
         "filltime": str(filltime)
     })
     print(f"體溫紀錄寫入完成: {user_id} - {temp}°C")
-
 
 # ========== 用藥 ==========
 def add_drug_record(user_id, drug_name, drug_pieces, eat_time, filltime=None):
@@ -229,64 +287,4 @@ def add_life_record(user_id, life_record, emotion, filltime=None):
     print(f"生活紀錄寫入完成: {user_id} - {emotion}")
 
 
-# ========== 體脂 ==========
-def add_bodyfat_record(user_id, bodyfat, filltime=None):
-    """
-    新增體脂紀錄
-    路徑: BodyFat/{userId}/{filltime}
 
-    參數:
-        bodyfat: 體脂率 (%)
-    """
-    if filltime is None:
-        filltime = _get_current_filltime()
-
-    ref = db.reference(f'BodyFat/{user_id}/{filltime}')
-    ref.set({
-        "id": str(user_id),
-        "bodyfat": str(bodyfat),
-        "filltime": str(filltime)
-    })
-    print(f"體脂紀錄寫入完成: {user_id} - {bodyfat}%")
-
-
-# ========== 骨骼肌 ==========
-def add_muscle_record(user_id, muscle, filltime=None):
-    """
-    新增骨骼肌紀錄
-    路徑: Muscle/{userId}/{filltime}
-
-    參數:
-        muscle: 骨骼肌率 (%)
-    """
-    if filltime is None:
-        filltime = _get_current_filltime()
-
-    ref = db.reference(f'Muscle/{user_id}/{filltime}')
-    ref.set({
-        "id": str(user_id),
-        "muscle": str(muscle),
-        "filltime": str(filltime)
-    })
-    print(f"骨骼肌紀錄寫入完成: {user_id} - {muscle}%")
-
-
-# ========== BMI ==========
-def add_bmi_record(user_id, bmi, filltime=None):
-    """
-    新增 BMI 紀錄
-    路徑: BMI/{userId}/{filltime}
-
-    參數:
-        bmi: BMI 值
-    """
-    if filltime is None:
-        filltime = _get_current_filltime()
-
-    ref = db.reference(f'BMI/{user_id}/{filltime}')
-    ref.set({
-        "id": str(user_id),
-        "bmi": str(bmi),
-        "filltime": str(filltime)
-    })
-    print(f"BMI 紀錄寫入完成: {user_id} - {bmi}")

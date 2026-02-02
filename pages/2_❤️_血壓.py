@@ -14,7 +14,18 @@ if "logged_in" not in st.session_state or not st.session_state.logged_in:
 
 user_id = st.session_state.user_id
 
+# 檢查是否為補填模式
+backfill_date = st.session_state.get("backfill_date", None)
+if backfill_date:
+    is_backfill = True
+    fill_date = backfill_date
+else:
+    is_backfill = False
+    fill_date = datetime.now().strftime("%Y-%m-%d")
+
 st.title("❤️ 血壓心率紀錄")
+if is_backfill:
+    st.warning(f"📝 補填日期：**{fill_date}**")
 st.markdown(f"**學員編號：** {user_id}")
 
 # ===== Tab 切換 =====
@@ -28,29 +39,41 @@ with tab1:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        mmHg1 = st.number_input("收縮壓 (mmHg)", min_value=50, max_value=250, value=120, step=1)
+        mmHg1 = st.number_input("收縮壓 (mmHg)", min_value=50, max_value=250, value=None, step=1, placeholder="請輸入")
     with col2:
-        mmHg2 = st.number_input("舒張壓 (mmHg)", min_value=30, max_value=150, value=80, step=1)
+        mmHg2 = st.number_input("舒張壓 (mmHg)", min_value=30, max_value=150, value=None, step=1, placeholder="請輸入")
     with col3:
-        bpm = st.number_input("心跳 (bpm)", min_value=30, max_value=200, value=72, step=1)
+        bpm = st.number_input("心跳 (bpm)", min_value=30, max_value=200, value=None, step=1, placeholder="請輸入")
 
     # 血壓判讀提示
     st.markdown("---")
-    if mmHg1 < 90 or mmHg2 < 60:
-        st.info("💙 血壓偏低")
-    elif mmHg1 < 120 and mmHg2 < 80:
-        st.success("💚 血壓正常")
-    elif mmHg1 < 140 or mmHg2 < 90:
-        st.warning("💛 血壓偏高（注意）")
-    else:
-        st.error("❤️ 血壓過高（請諮詢醫師）")
+    if mmHg1 is not None and mmHg2 is not None:
+        if mmHg1 < 90 or mmHg2 < 60:
+            st.info("💙 血壓偏低")
+        elif mmHg1 < 120 and mmHg2 < 80:
+            st.success("💚 血壓正常")
+        elif mmHg1 < 140 or mmHg2 < 90:
+            st.warning("💛 血壓偏高（注意）")
+        else:
+            st.error("❤️ 血壓過高（請諮詢醫師）")
 
     # 儲存按鈕
     st.markdown("---")
     if st.button("✅ 儲存紀錄", use_container_width=True, type="primary"):
-        add_heartrate_record(user_id, mmHg1, mmHg2, bpm)
-        st.success(f"已儲存！血壓 {mmHg1}/{mmHg2} mmHg，心跳 {bpm} bpm")
-        st.rerun()
+        if mmHg1 is None or mmHg2 is None or bpm is None:
+            st.warning("請填寫所有欄位")
+        else:
+            # 補填模式用指定日期 + 12:00，否則用當前時間
+            if is_backfill:
+                save_filltime = f"{fill_date} 12:00"
+            else:
+                save_filltime = datetime.now().strftime("%Y-%m-%d %H:%M")
+            add_heartrate_record(user_id, mmHg1, mmHg2, bpm, filltime=save_filltime)
+            
+            if "backfill_date" in st.session_state:
+                del st.session_state.backfill_date
+
+            st.switch_page("app.py")
 
 # ==================== Tab 2: 歷史紀錄 ====================
 with tab2:

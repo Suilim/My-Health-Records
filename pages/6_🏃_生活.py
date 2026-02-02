@@ -14,7 +14,18 @@ if "logged_in" not in st.session_state or not st.session_state.logged_in:
 
 user_id = st.session_state.user_id
 
+# 檢查是否為補填模式
+backfill_date = st.session_state.get("backfill_date", None)
+if backfill_date:
+    is_backfill = True
+    fill_date = backfill_date
+else:
+    is_backfill = False
+    fill_date = datetime.now().strftime("%Y-%m-%d")
+
 st.title("🏃 生活紀錄")
+if is_backfill:
+    st.warning(f"📝 補填日期：**{fill_date}**")
 st.markdown(f"**學員編號：** {user_id}")
 
 # ===== Tab 切換 =====
@@ -80,9 +91,15 @@ with tab1:
         if full_record.strip():
             # 取得情緒文字（去掉 emoji）
             emotion_text = emotion.split(" ")[1] if " " in emotion else emotion
-            add_life_record(user_id, full_record, emotion_text)
-            st.success("已儲存生活紀錄！")
-            st.rerun()
+            # 補填模式用指定日期 + 12:00，否則用當前時間
+            if is_backfill:
+                save_filltime = f"{fill_date} 12:00"
+            else:
+                save_filltime = datetime.now().strftime("%Y-%m-%d %H:%M")
+            add_life_record(user_id, full_record, emotion_text, filltime=save_filltime)
+            if "backfill_date" in st.session_state:
+                del st.session_state.backfill_date
+            st.switch_page("app.py")
         else:
             st.warning("請輸入生活紀錄內容或選擇標籤")
 

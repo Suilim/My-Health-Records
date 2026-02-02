@@ -1,0 +1,12 @@
+[theme]
+# 這是你說的「Streamlit 紅」，可以改成你喜歡的顏色（例如深藍色）
+primaryColor = "#7A99C4"
+
+# 頁面的背景顏色
+backgroundColor = "#F9F7F6"
+
+# 側邊欄與元件的背景顏色
+secondaryBackgroundColor = "#FFFFFF"
+
+# 文字顏色
+textColor = "#262730"

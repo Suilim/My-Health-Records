@@ -3,7 +3,9 @@ from firebase_utils import db
 from settings_utils import (
     MODULE_NAMES,
     get_user_settings,
-    update_module_setting
+    update_module_setting,
+    get_reminder_settings,
+    update_reminder_setting
 )
 
 st.set_page_config(page_title="設定", page_icon="⚙️")
@@ -22,7 +24,7 @@ st.markdown("---")
 
 # ===== 啟用模組設定 =====
 st.subheader("📋 啟用模組")
-st.caption("開啟的模組會在首頁顯示今日填寫狀態，並納入補填提醒檢查。")
+st.caption("開啟的模組會在首頁顯示今日填寫狀態。")
 
 settings = get_user_settings(user_id)
 modules = settings.get("modules", {})
@@ -46,22 +48,28 @@ for i, module_key in enumerate(module_keys):
             update_module_setting(user_id, module_key, new_state)
             st.rerun()
 
-# ===== 未來可擴充的設定 =====
+# ===== 提醒設定 =====
 st.markdown("---")
 st.subheader("🔔 提醒設定")
-st.info("提醒設定功能開發中...")
 
-st.markdown("---")
-st.subheader("💊 藥物清單管理")
-st.info("藥物清單管理功能開發中...")
+reminder = get_reminder_settings(user_id)
+reminder_enabled = reminder.get("enabled", True)
+reminder_days = reminder.get("days_to_check", 30)
+
+new_enabled = st.toggle("啟用待補填提醒", value=reminder_enabled, key="toggle_reminder")
+if new_enabled != reminder_enabled:
+    update_reminder_setting(user_id, "enabled", new_enabled)
+    st.rerun()
+
+if new_enabled:
+    new_days = st.slider("檢查天數", min_value=1, max_value=30, value=min(reminder_days, 30), step=1, help="從幾天前開始檢查漏填紀錄")
+    if new_days != reminder_days:
+        update_reminder_setting(user_id, "days_to_check", new_days)
+        st.rerun()
 
 st.markdown("---")
 st.subheader("🏃 運動清單管理")
 st.info("運動清單管理功能開發中...")
-
-st.markdown("---")
-st.subheader("🏥 回診管理")
-st.info("回診管理功能開發中...")
 
 # 返回首頁
 st.markdown("---")

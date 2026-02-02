@@ -54,6 +54,23 @@ def update_module_setting(user_id: str, module_key: str, enabled: bool):
     ref.set(enabled)
 
 
+def get_reminder_settings(user_id: str) -> dict:
+    """取得提醒設定"""
+    ref = db.reference(f"Settings/{user_id}/reminder")
+    settings = ref.get()
+    if settings:
+        # 確保 days_to_check 是 int
+        settings["days_to_check"] = int(settings.get("days_to_check", 30))
+        return settings
+    return {"enabled": True, "days_to_check": 30}
+
+
+def update_reminder_setting(user_id: str, key: str, value):
+    """更新提醒設定"""
+    ref = db.reference(f"Settings/{user_id}/reminder/{key}")
+    ref.set(value)
+
+
 def get_user_created_date(user_id: str) -> str:
     """取得用戶註冊日期"""
     ref = db.reference(f"User/{user_id}/created_at")
@@ -85,9 +102,21 @@ def get_recorded_dates(user_id: str, module_key: str) -> set:
     return dates
 
 
+def get_first_record_date(user_id: str, module_key: str):
+    """取得某模組第一筆紀錄的日期（用來判斷何時開始記錄）"""
+    recorded_dates = get_recorded_dates(user_id, module_key)
+    if not recorded_dates:
+        return None
+    # 取最早的日期
+    return min(recorded_dates)
+
+
 def get_missing_dates(user_id: str, module_key: str, days_to_check: int = 30) -> list:
     """
     取得某模組漏填的日期列表
+
+    邏輯: 從「第一筆紀錄日期」開始檢查，而非註冊日。
+          如果從來沒填過，就不提醒。
 
     參數:
         user_id: 用戶 ID
@@ -97,18 +126,21 @@ def get_missing_dates(user_id: str, module_key: str, days_to_check: int = 30) ->
     回傳:
         漏填的日期列表，格式 ["2024-01-15", "2024-01-16", ...]
     """
-    # 取得註冊日期
-    created_at_str = get_user_created_date(user_id)
-    created_at = datetime.strptime(created_at_str, "%Y-%m-%d").date()
+    # 取得第一筆紀錄日期作為起始點
+    first_date_str = get_first_record_date(user_id, module_key)
+    if first_date_str is None:
+        return []  # 從沒填過，不提醒
+
+    first_date = datetime.strptime(first_date_str, "%Y-%m-%d").date()
 
     # 今天
     today = datetime.now().date()
 
-    # 計算檢查起始日 (取註冊日和 N 天前的較晚者)
+    # 計算檢查起始日 (取第一筆紀錄日和 N 天前的較晚者)
     check_start = today - timedelta(days=days_to_check)
-    start_date = max(created_at, check_start)
+    start_date = max(first_date, check_start)
 
-    # 如果註冊日是今天，不需要檢查
+    # 如果第一筆紀錄是今天，不需要檢查
     if start_date >= today:
         return []
 

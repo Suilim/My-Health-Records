@@ -7,13 +7,14 @@ from settings_utils import (
     get_enabled_modules,
     update_module_setting,
     check_today_records,
-    get_all_missing_records
+    get_all_missing_records,
+    get_reminder_settings
 )
 
 # 頁面設定
 st.set_page_config(
-    page_title="健康管理系統",
-    page_icon="🏥",
+    page_title="我的健康紀錄",
+    page_icon="logo.png",
     layout="centered"
 )
 
@@ -51,7 +52,9 @@ def verify_password(user_id: str, password: str) -> bool:
 
 def login_page():
     """登入頁面 - 整合選擇使用者和密碼輸入"""
-    st.title("🏥 健康管理系統")
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.image("logo.png", width="stretch")
     st.markdown("---")
 
     # 取得使用者列表
@@ -71,10 +74,10 @@ def login_page():
     if st.session_state.selected_user is None and not st.session_state.show_add_user:
         st.subheader("👤 請點選您的名字")
 
-        # 用大按鈕列出所有使用者，方便老人點選
+        # 用大按鈕列出所有使用者，方便點選
         for user in users:
             if st.button(
-                f"👤 {user['name']}",
+                f"{user['id']} {user['name']}",
                 key=f"user_{user['id']}",
                 use_container_width=True,
                 type="primary"
@@ -161,63 +164,9 @@ def main_menu():
     """主選單頁面 (登入後的首頁)"""
     user_id = st.session_state.user_id
 
-    # ===== 待補填通知 (最上方，像未讀郵件) =====
-    missing_records = get_all_missing_records(user_id, days_to_check=30)
-    total_missing = sum(len(dates) for dates in missing_records.values())
-
-    if total_missing > 0:
-        # 紅色通知欄
-        st.error(f"🔔 您有 **{total_missing}** 筆待補填紀錄")
-
-        # 顯示各模組缺少數量
-        cols = st.columns(len(missing_records))
-        for i, (module_key, missing_dates) in enumerate(missing_records.items()):
-            with cols[i]:
-                module_name = MODULE_NAMES.get(module_key, module_key)
-                if st.button(
-                    f"📝 {module_name}\n缺 {len(missing_dates)} 天",
-                    key=f"notify_{module_key}",
-                    use_container_width=True
-                ):
-                    # TODO: 跳轉到對應補填頁面
-                    st.session_state.show_missing_detail = module_key
-
-        # 如果點擊了某個模組，顯示詳細日期
-        if "show_missing_detail" in st.session_state and st.session_state.show_missing_detail:
-            module_key = st.session_state.show_missing_detail
-            if module_key in missing_records:
-                module_name = MODULE_NAMES.get(module_key, module_key)
-                with st.container():
-                    st.markdown(f"**{module_name} 待補填日期：**")
-                    for date in missing_records[module_key][:7]:
-                        col1, col2 = st.columns([3, 1])
-                        with col1:
-                            st.write(f"📆 {date}")
-                        with col2:
-                            if st.button("補填", key=f"fill_{module_key}_{date}"):
-                                st.info(f"補填 {module_name} - {date}")
-
-                    if len(missing_records[module_key]) > 7:
-                        st.caption(f"...還有 {len(missing_records[module_key]) - 7} 天")
-
-                    if st.button("關閉", key="close_missing_detail"):
-                        st.session_state.show_missing_detail = None
-                        st.rerun()
-
-        st.markdown("---")
-
-    # ===== 標題 =====
-    st.title("🏥 健康管理系統")
-    st.markdown(f"### 歡迎，{st.session_state.user_name}！")
-    st.markdown(f"**學員編號：** {user_id}")
-
-    # ===== 今日填寫狀態 =====
-    st.markdown("---")
-    st.subheader("📅 今日填寫狀態（點擊進入填寫）")
-
     # 模組對應的頁面路徑
     MODULE_PAGES = {
-        "heartrate": "pages/2_❤️_心率.py",
+        "heartrate": "pages/2_❤️_血壓.py",
         "weight": "pages/3_⚖️_體重.py",
         "sugar": "pages/4_🩸_血糖.py",
         "temp": "pages/5_🌡️_體溫.py",
@@ -234,6 +183,55 @@ def main_menu():
         "drug": "💊",
         "life": "🏃"
     }
+
+    # ===== 待補填通知 (最上方) =====
+    reminder = get_reminder_settings(user_id)
+    reminder_enabled = reminder.get("enabled", True)
+    reminder_days = reminder.get("days_to_check", 30)
+
+    missing_records = {}
+    total_missing = 0
+    if reminder_enabled:
+        missing_records = get_all_missing_records(user_id, days_to_check=reminder_days)
+        total_missing = sum(len(dates) for dates in missing_records.values())
+
+    if total_missing > 0:
+        st.error(f"🔔 您有 **{total_missing}** 筆待補填紀錄")
+
+        # 把所有待補填項目整理成列表，按日期排序
+        all_missing = []
+        for module_key, dates in missing_records.items():
+            for date in dates:
+                all_missing.append({
+                    "date": date,
+                    "module_key": module_key,
+                    "module_name": MODULE_NAMES.get(module_key, module_key)
+                })
+
+        # 按日期降序排列（最近的在前）
+        all_missing.sort(key=lambda x: x["date"], reverse=True)
+
+        # 只顯示前 10 筆，避免太長
+        display_limit = 10
+        for item in all_missing[:display_limit]:
+            if st.button(
+                f"📝 {item['date']} {item['module_name']}",
+                key=f"backfill_{item['module_key']}_{item['date']}",
+                use_container_width=True
+            ):
+                # 儲存補填日期到 session state，然後跳轉
+                st.session_state.backfill_date = item["date"]
+                page_path = MODULE_PAGES.get(item["module_key"])
+                if page_path:
+                    st.switch_page(page_path)
+
+        if len(all_missing) > display_limit:
+            st.caption(f"...還有 {len(all_missing) - display_limit} 筆待補填")
+
+        st.markdown("---")
+
+    # ===== 今日填寫狀態 =====
+    st.header(f"📅  {st.session_state.user_name} 今日紀錄")
 
     today_status = check_today_records(user_id)
 
@@ -252,14 +250,14 @@ def main_menu():
                     # 已填寫 - 綠色按鈕
                     st.page_link(
                         page_path,
-                        label=f"✅ {icon}\n{module_name}",
+                        label=f"✅ {icon}\n{module_name}完成",
                         use_container_width=True
                     )
                 else:
                     # 未填寫 - 用按鈕讓它更明顯
                     st.page_link(
                         page_path,
-                        label=f"⏳ {icon}\n{module_name}",
+                        label=f"❌{icon}\n{module_name}",
                         use_container_width=True
                     )
 

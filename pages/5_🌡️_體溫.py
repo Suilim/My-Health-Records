@@ -14,7 +14,18 @@ if "logged_in" not in st.session_state or not st.session_state.logged_in:
 
 user_id = st.session_state.user_id
 
+# 檢查是否為補填模式
+backfill_date = st.session_state.get("backfill_date", None)
+if backfill_date:
+    is_backfill = True
+    fill_date = backfill_date
+else:
+    is_backfill = False
+    fill_date = datetime.now().strftime("%Y-%m-%d")
+
 st.title("🌡️ 體溫紀錄")
+if is_backfill:
+    st.warning(f"📝 補填日期：**{fill_date}**")
 st.markdown(f"**學員編號：** {user_id}")
 
 # ===== Tab 切換 =====
@@ -25,27 +36,35 @@ with tab1:
     st.subheader("新增體溫紀錄")
 
     # 輸入欄位
-    temp = st.number_input("體溫 (°C)", min_value=34.0, max_value=42.0, value=36.5, step=0.1, format="%.1f")
+    temp = st.number_input("體溫 (°C)", min_value=34.0, max_value=42.0, value=None, step=0.1, format="%.1f", placeholder="請輸入")
 
     # 體溫判讀提示
     st.markdown("---")
-    if temp < 35.0:
-        st.error("🥶 體溫過低（請注意保暖）")
-    elif temp < 37.5:
-        st.success("💚 體溫正常")
-    elif temp < 38.0:
-        st.warning("💛 微燒")
-    elif temp < 39.0:
-        st.error("🔥 發燒（建議休息觀察）")
-    else:
-        st.error("🔥 高燒（請就醫）")
+    if temp is not None:
+        if temp < 37.5:
+            st.success("💚 體溫正常")
+        elif temp < 38.0:
+            st.warning("💛 微燒")
+        elif temp < 39.0:
+            st.error("🔥 發燒（建議休息觀察）")
+        else:
+            st.error("🔥 高燒（請就醫）")
 
     # 儲存按鈕
     st.markdown("---")
     if st.button("✅ 儲存紀錄", use_container_width=True, type="primary"):
-        add_temp_record(user_id, temp)
-        st.success(f"已儲存！體溫 {temp}°C")
-        st.rerun()
+        if temp is None:
+            st.warning("請填寫體溫")
+        else:
+            # 補填模式用指定日期 + 12:00，否則用當前時間
+            if is_backfill:
+                save_filltime = f"{fill_date} 12:00"
+            else:
+                save_filltime = datetime.now().strftime("%Y-%m-%d %H:%M")
+            add_temp_record(user_id, temp, filltime=save_filltime)
+            if "backfill_date" in st.session_state:
+                del st.session_state.backfill_date
+            st.switch_page("app.py")
 
 # ==================== Tab 2: 歷史紀錄 ====================
 with tab2:

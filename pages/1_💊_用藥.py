@@ -179,7 +179,7 @@ with tab1:
     with col3:
         st.write("")  # 空白占位
         st.write("")
-        if st.button("➕ 加入", use_container_width=True):
+        if st.button("➕ 加入", width='stretch'):
             if new_drug_name:
                 st.session_state.drug_list.append({
                     "name": new_drug_name,
@@ -194,7 +194,7 @@ with tab1:
     st.markdown("---")
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("✅ 儲存全部", use_container_width=True, type="primary", disabled=len(st.session_state.drug_list) == 0):
+        if st.button("✅ 儲存全部", width='stretch', type="primary", disabled=len(st.session_state.drug_list) == 0):
             if st.session_state.drug_list:
                 # 補填模式用指定日期 + 12:00，否則用當前時間
                 if is_backfill:
@@ -207,7 +207,7 @@ with tab1:
                     del st.session_state.backfill_date
                 st.switch_page("app.py")
     with col2:
-        if st.button("🗑️ 清空清單", use_container_width=True, disabled=len(st.session_state.drug_list) == 0):
+        if st.button("🗑️ 清空清單", width='stretch', disabled=len(st.session_state.drug_list) == 0):
             st.session_state.drug_list = []
             st.rerun()
 

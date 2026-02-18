@@ -109,7 +109,7 @@ with tab1:
 
     # ----- 儲存 -----
     st.markdown("---")
-    if st.button("✅ 儲存紀錄", use_container_width=True, type="primary"):
+    if st.button("✅ 儲存紀錄", width='stretch', type="primary"):
         if weight is None:
             st.warning("請填寫體重")
         else:

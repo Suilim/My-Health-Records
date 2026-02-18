@@ -87,7 +87,7 @@ with tab1:
 
     # 儲存按鈕
     st.markdown("---")
-    if st.button("✅ 儲存紀錄", use_container_width=True, type="primary"):
+    if st.button("✅ 儲存紀錄", width='stretch', type="primary"):
         if full_record.strip():
             # 取得情緒文字（去掉 emoji）
             emotion_text = emotion.split(" ")[1] if " " in emotion else emotion

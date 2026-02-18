@@ -59,7 +59,7 @@ with tab1:
 
     # 儲存按鈕
     st.markdown("---")
-    if st.button("✅ 儲存紀錄", use_container_width=True, type="primary"):
+    if st.button("✅ 儲存紀錄", width='stretch', type="primary"):
         if mmHg1 is None or mmHg2 is None or bpm is None:
             st.warning("請填寫所有欄位")
         else:

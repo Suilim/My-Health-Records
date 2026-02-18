@@ -27,7 +27,6 @@ user_id = st.session_state.user_id
 user_name = st.session_state.user_name
 
 st.title("📊 健康趨勢")
-st.write(f"**{user_name}** 的健康數據")
 st.markdown("---")
 
 # ── 時間範圍選擇 ──
@@ -125,7 +124,7 @@ with st.spinner("載入中..."):
                         lambda v: "background-color: #c8e6c9; color: #2e7d32; font-weight: bold"
                         if v == "V" else "color: #ccc"
                     ),
-                    use_container_width=True,
+                    width='stretch',
                 )
                 st.write(f"期間共 **{len(records)}** 筆用藥紀錄")
             else:

@@ -62,7 +62,7 @@ def login_page():
 
     if not users and not st.session_state.show_add_user:
         st.warning("目前沒有任何使用者，請先新增使用者。")
-        if st.button("➕ 新增使用者", use_container_width=True, type="primary"):
+        if st.button("➕ 新增使用者", width='stretch', type="primary"):
             st.session_state.show_add_user = True
             st.rerun()
         return
@@ -79,7 +79,7 @@ def login_page():
             if st.button(
                 f"{user['id']} {user['name']}",
                 key=f"user_{user['id']}",
-                use_container_width=True,
+                width='stretch',
                 type="primary"
             ):
                 st.session_state.selected_user = user
@@ -87,7 +87,7 @@ def login_page():
 
         # 新增使用者按鈕
         st.markdown("---")
-        if st.button("新增使用者", icon=":material/add:", use_container_width=True):
+        if st.button("新增使用者", icon=":material/add:", width='stretch'):
             st.session_state.show_add_user = True
             st.rerun()
 
@@ -103,7 +103,7 @@ def login_page():
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("✅ 確認新增", use_container_width=True, type="primary"):
+            if st.button("✅ 確認新增", width='stretch', type="primary"):
                 if not new_id or not new_name or not new_password:
                     st.error("請填寫所有欄位！")
                 elif new_password != new_password_confirm:
@@ -120,7 +120,7 @@ def login_page():
                         st.rerun()
 
         with col2:
-            if st.button("🔙 取消", use_container_width=True):
+            if st.button("🔙 取消", width='stretch'):
                 st.session_state.show_add_user = False
                 st.rerun()
 
@@ -141,7 +141,7 @@ def login_page():
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("✅ 登入", use_container_width=True, type="primary"):
+            if st.button("✅ 登入", width='stretch', type="primary"):
                 if password:
                     if verify_password(selected_id, password):
                         st.session_state.logged_in = True
@@ -156,7 +156,7 @@ def login_page():
                     st.warning("請輸入密碼")
 
         with col2:
-            if st.button("🔙 重新選擇", use_container_width=True):
+            if st.button("🔙 重新選擇", width='stretch'):
                 st.session_state.selected_user = None
                 st.rerun()
 
@@ -217,7 +217,7 @@ def main_menu():
             if st.button(
                 f"📝 {item['date']} {item['module_name']}",
                 key=f"backfill_{item['module_key']}_{item['date']}",
-                use_container_width=True
+                width='stretch'
             ):
                 # 儲存補填日期到 session state，然後跳轉
                 st.session_state.backfill_date = item["date"]
@@ -237,7 +237,7 @@ def main_menu():
 
     if not today_status:
         st.info("尚未啟用任何模組，請前往設定頁面開啟。")
-        st.page_link("pages/0_⚙️_設定.py", label="⚙️ 前往設定", use_container_width=True)
+        st.page_link("pages/0_⚙️_設定.py", label="⚙️ 前往設定", width='stretch')
     else:
         cols = st.columns(len(today_status))
         for i, (module_key, is_filled) in enumerate(today_status.items()):
@@ -251,27 +251,31 @@ def main_menu():
                     st.page_link(
                         page_path,
                         label=f"✅ {icon}\n{module_name}完成",
-                        use_container_width=True
+                        width='stretch'
                     )
                 else:
                     # 未填寫 - 用按鈕讓它更明顯
                     st.page_link(
                         page_path,
                         label=f"❌{icon}\n{module_name}",
-                        use_container_width=True
+                        width='stretch'
                     )
 
     # ===== 底部按鈕 =====
     st.markdown("---")
     col1, col2 = st.columns(2)
     with col1:
-        st.page_link("pages/0_⚙️_設定.py", label="⚙️ 設定", use_container_width=True)
+        st.page_link("pages/0_⚙️_設定.py", label="⚙️ 設定", width='stretch')
     with col2:
-        if st.button("🚪 登出", use_container_width=True):
-            st.session_state.logged_in = False
-            st.session_state.user_id = None
-            st.session_state.user_name = None
-            st.rerun()
+        st.page_link("pages/7_📊_圖表與匯出.py", label="📊_圖表與匯出", width='stretch')
+
+    # ==== 登出 ====
+    st.write("")
+    if st.button("🚪 登出", width='stretch'):
+        st.session_state.logged_in = False
+        st.session_state.user_id = None
+        st.session_state.user_name = None
+        st.rerun()
 
 # 主程式邏輯
 if st.session_state.logged_in:

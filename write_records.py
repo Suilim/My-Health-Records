@@ -286,5 +286,91 @@ def add_life_record(user_id, life_record, emotion, filltime=None):
     })
     print(f"生活紀錄寫入完成: {user_id} - {emotion}")
 
+# ========== 症狀 ==========
+def add_symptom_record(user_id, symptom_name, duration, symptom_time, filltime=None):
+    """
+    新增症狀紀錄
+    路徑: Symptom/{userId}/{filltime}
 
+    參數:
+        symptom_name: 症狀
+        duration: 持續時間
+        symptom_time: 發作時間
+    """
+    if filltime is None:
+        filltime = _get_current_filltime()
+
+    ref = db.reference(f'Symptom/{user_id}/{filltime}')
+    ref.set({
+        "id": str(user_id),
+        "symptomname": str(symptom_name),
+        "duration": str(duration),
+        "symptomtime": str(symptom_time),
+        "filltime": str(filltime)
+    })
+    print(f"症狀紀錄寫入完成: {user_id} - {symptom_name} {duration}")
+
+
+def update_symptom_record(user_id, filltime, symptom_name, duration, symptom_time):
+    """
+    更新症狀紀錄
+    路徑: Symptom/{userId}/{filltime}
+    """
+    ref = db.reference(f'Symptom/{user_id}/{filltime}')
+    ref.update({
+        "symptomname": str(symptom_name),
+        "duration": str(duration),
+        "symptomtime": str(symptom_time)
+    })
+    print(f"症狀紀錄更新完成: {user_id} - {symptom_name}")
+
+
+def delete_symptom_record(user_id, filltime):
+    """
+    刪除症狀紀錄
+    路徑: Symptom/{userId}/{filltime}
+    """
+    ref = db.reference(f'Symptom/{user_id}/{filltime}')
+    ref.delete()
+    print(f"症狀紀錄刪除完成: {user_id} - {filltime}")
+
+
+def add_symptom_records_batch(user_id, symptoms, filltime=None):
+    """
+    批次新增多筆用藥紀錄（同一時間點）
+    路徑: Symptom/{userId}/{filltime}:XX (自動加秒數避免衝突)
+
+    參數:
+        user_id: 使用者ID
+        symptoms: list of dict，每個 dict 包含:
+            - name: 症狀名稱
+            - duration: 持續時間（很快就過了/一段時間/很久）
+            - symptomtime: 確切時間點
+        filltime: 填寫時間（可選，預設當前時間）
+
+    範例:
+        add_symptom_records_batch("A001", [
+            {"name": "頭痛", "duration": "一段時間", "symptomtime": "2024-01-20 14:30"},
+            {"name": "皮膚乾癢", "duration": "很久", "symptomtime": "2024-01-20 21:00"},
+            {"name": "眼睛乾澀", "duration": "很久", "symptomtime": "2024-01-20 15:00"},
+        ])
+    """
+    if filltime is None:
+        filltime = _get_current_filltime()
+
+    for i, symptom in enumerate(symptoms):
+        # 加上秒數避免 key 衝突: "2024-01-20 14:30:00", "2024-01-20 14:30:01", ...
+        unique_filltime = f"{filltime}:{i:02d}"
+
+        ref = db.reference(f'Symptom/{user_id}/{unique_filltime}')
+        ref.set({
+            "id": str(user_id),
+            "symptomname": str(symptom["name"]),
+            "duration": str(symptom["duration"]),
+            "symptomtime": str(symptom["symptomtime"]),
+            "filltime": str(unique_filltime)
+        })
+        print(f"症狀紀錄寫入完成: {user_id} - {symptom['name']} / {symptom['duration']}")
+
+    print(f"批次寫入完成，共 {len(symptoms)} 筆用藥紀錄")
 

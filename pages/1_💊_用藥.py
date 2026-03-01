@@ -16,13 +16,15 @@ user_id = st.session_state.user_id
 
 # 檢查是否為補填模式
 backfill_date = st.session_state.get("backfill_date", None)
+backfill_slot = st.session_state.get("backfill_slot", None)
 if backfill_date:
-    # 清除 backfill_date，避免重複使用
     is_backfill = True
     fill_date = backfill_date
+    prefill_slot = backfill_slot  # 可能是 None 或 "早"/"午"/"晚"/"睡前"
 else:
     is_backfill = False
     fill_date = datetime.now().strftime("%Y-%m-%d")
+    prefill_slot = None
 
 # 初始化 session state
 if "drug_list" not in st.session_state:
@@ -77,7 +79,10 @@ def get_latest_drugs_by_eattime(user_id, eattime, before_date=None):
 
 st.title("💊 用藥紀錄")
 if is_backfill:
-    st.warning(f"📝 補填日期：**{fill_date}**")
+    if prefill_slot:
+        st.warning(f"📝 補填日期：**{fill_date}** 時段：**{prefill_slot}**")
+    else:
+        st.warning(f"📝 補填日期：**{fill_date}**")
 st.markdown(f"**學員編號：** {user_id}")
 
 # ===== Tab 切換 =====
@@ -88,10 +93,17 @@ with tab1:
     st.subheader("新增用藥紀錄")
 
     # ----- 選擇時段（自動帶入最近同時段紀錄）-----
+    slot_options = ["早", "午", "晚", "睡前"]
+    default_index = 0
+    if prefill_slot and prefill_slot in slot_options:
+        default_index = slot_options.index(prefill_slot)
+
     selected_time = st.selectbox(
         "服藥時段",
-        ["早", "午", "晚", "睡前"],
-        key="new_eat_time"
+        slot_options,
+        index=default_index,
+        key="new_eat_time",
+        disabled=(prefill_slot is not None)
     )
 
     # 當時段或日期改變時，自動帶入最近一次同時段的藥物（只取填寫日期之前的紀錄）
@@ -121,51 +133,35 @@ with tab1:
     # 顯示目前的藥物清單
     if st.session_state.drug_list:
         for i, drug in enumerate(st.session_state.drug_list):
-            # 判斷是否在編輯模式
-            if st.session_state.editing_drug_index == i:
-                # 編輯模式
-                col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-                with col1:
-                    edit_name = st.text_input(
-                        "藥名",
-                        value=drug["name"],
-                        key=f"edit_drug_name_{i}",
-                        label_visibility="collapsed"
-                    )
-                with col2:
-                    edit_pieces = st.number_input(
-                        "數量",
-                        value=int(drug["pieces"]) if str(drug["pieces"]).isdigit() else 1,
-                        min_value=1,
-                        key=f"edit_drug_pieces_{i}",
-                        label_visibility="collapsed"
-                    )
-                with col3:
-                    if st.button("💾", key=f"save_drug_{i}"):
-                        st.session_state.drug_list[i]["name"] = edit_name
-                        st.session_state.drug_list[i]["pieces"] = edit_pieces
-                        st.session_state.editing_drug_index = None
-                        st.rerun()
-                with col4:
-                    if st.button("❌", key=f"cancel_drug_{i}"):
-                        st.session_state.editing_drug_index = None
-                        st.rerun()
-            else:
-                # 顯示模式
-                col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-                with col1:
-                    st.write(f"💊 **{drug['name']}**")
-                with col2:
-                    st.write(f"x {drug['pieces']}")
-                with col3:
-                    if st.button("✏️", key=f"edit_drug_{i}"):
-                        st.session_state.editing_drug_index = i
-                        st.rerun()
-                with col4:
-                    if st.button("🗑️", key=f"delete_drug_{i}"):
-                        st.session_state.drug_list.pop(i)
-                        st.session_state.editing_drug_index = None
-                        st.rerun()
+            is_editing = (st.session_state.editing_drug_index == i)
+            with st.expander(f"💊 **{drug['name']}**　x {drug['pieces']}", expanded=is_editing):
+                if is_editing:
+                    # 編輯模式
+                    edit_name = st.text_input("藥名", value=drug["name"], key=f"edit_drug_name_{i}")
+                    edit_pieces = st.number_input("數量", value=int(drug["pieces"]) if str(drug["pieces"]).isdigit() else 1, min_value=1, key=f"edit_drug_pieces_{i}")
+                    col_save, col_cancel = st.columns(2)
+                    with col_save:
+                        if st.button("💾 儲存", key=f"save_drug_{i}", use_container_width=True, type="primary"):
+                            st.session_state.drug_list[i]["name"] = edit_name
+                            st.session_state.drug_list[i]["pieces"] = edit_pieces
+                            st.session_state.editing_drug_index = None
+                            st.rerun()
+                    with col_cancel:
+                        if st.button("❌ 取消", key=f"cancel_drug_{i}", use_container_width=True):
+                            st.session_state.editing_drug_index = None
+                            st.rerun()
+                else:
+                    # 顯示模式
+                    col_edit, col_del = st.columns(2)
+                    with col_edit:
+                        if st.button("✏️ 修改", key=f"edit_drug_{i}", use_container_width=True):
+                            st.session_state.editing_drug_index = i
+                            st.rerun()
+                    with col_del:
+                        if st.button("🗑️ 刪除", key=f"delete_drug_{i}", use_container_width=True):
+                            st.session_state.drug_list.pop(i)
+                            st.session_state.editing_drug_index = None
+                            st.rerun()
     else:
         st.info("尚未新增藥物，請點擊下方按鈕新增")
 
@@ -205,6 +201,8 @@ with tab1:
                 st.session_state.drug_list = []  # 清空清單
                 if "backfill_date" in st.session_state:
                     del st.session_state.backfill_date
+                if "backfill_slot" in st.session_state:
+                    del st.session_state.backfill_slot
                 st.switch_page("app.py")
     with col2:
         if st.button("🗑️ 清空清單", width='stretch', disabled=len(st.session_state.drug_list) == 0):
@@ -246,43 +244,37 @@ with tab2:
                     filltime = r["filltime"]
 
                     # 判斷是否在編輯模式
-                    if st.session_state.edit_mode == filltime:
-                        # 編輯模式
-                        col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
-                        with col1:
+                    is_editing = (st.session_state.edit_mode == filltime)
+                    expander_label = f"💊 **{r['drugname']}**　x {r['drugpieces']}　({r['eattime']})"
+                    with st.expander(expander_label, expanded=is_editing):
+                        if is_editing:
+                            # 編輯模式
                             edit_name = st.text_input("藥名", value=r["drugname"], key=f"edit_name_{filltime}", label_visibility="collapsed")
-                        with col2:
                             edit_pieces = st.number_input("數量", value=int(r["drugpieces"]) if str(r["drugpieces"]).isdigit() else 1, min_value=1, key=f"edit_pieces_{filltime}", label_visibility="collapsed")
-                        with col3:
                             edit_eattime = st.selectbox("時段", ["早", "午", "晚", "睡前"], index=["早", "午", "晚", "睡前"].index(r["eattime"]) if r["eattime"] in ["早", "午", "晚", "睡前"] else 0, key=f"edit_eattime_{filltime}", label_visibility="collapsed")
-                        with col4:
-                            if st.button("💾", key=f"save_{filltime}"):
-                                update_drug_record(user_id, filltime, edit_name, edit_pieces, edit_eattime)
-                                st.session_state.edit_mode = None
-                                st.success("更新成功！")
-                                st.rerun()
-                        with col5:
-                            if st.button("❌", key=f"cancel_{filltime}"):
-                                st.session_state.edit_mode = None
-                                st.rerun()
-                    else:
-                        # 顯示模式
-                        col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
-                        with col1:
-                            st.write(f"💊 **{r['drugname']}**")
-                        with col2:
-                            st.write(f"x {r['drugpieces']}")
-                        with col3:
-                            st.write(f"({r['eattime']})")
-                        with col4:
-                            if st.button("✏️", key=f"edit_{filltime}"):
-                                st.session_state.edit_mode = filltime
-                                st.rerun()
-                        with col5:
-                            if st.button("🗑️", key=f"del_{filltime}"):
-                                delete_drug_record(user_id, filltime)
-                                st.success("刪除成功！")
-                                st.rerun()
+                            col_save, col_cancel = st.columns(2)
+                            with col_save:
+                                if st.button("💾 儲存", key=f"save_{filltime}", use_container_width=True, type="primary"):
+                                    update_drug_record(user_id, filltime, edit_name, edit_pieces, edit_eattime)
+                                    st.session_state.edit_mode = None
+                                    st.success("更新成功！")
+                                    st.rerun()
+                            with col_cancel:
+                                if st.button("❌ 取消", key=f"cancel_{filltime}", use_container_width=True):
+                                    st.session_state.edit_mode = None
+                                    st.rerun()
+                        else:
+                            # 顯示模式
+                            col_edit, col_del = st.columns(2)
+                            with col_edit:
+                                if st.button("✏️ 修改", key=f"edit_{filltime}", use_container_width=True):
+                                    st.session_state.edit_mode = filltime
+                                    st.rerun()
+                            with col_del:
+                                if st.button("🗑️ 刪除", key=f"del_{filltime}", use_container_width=True):
+                                    delete_drug_record(user_id, filltime)
+                                    st.success("刪除成功！")
+                                    st.rerun()
 
 # ===== 返回首頁 =====
 st.markdown("---")

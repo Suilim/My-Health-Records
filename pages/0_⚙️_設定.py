@@ -2,10 +2,13 @@ import streamlit as st
 from firebase_utils import db
 from settings_utils import (
     MODULE_NAMES,
+    DRUG_SLOT_OPTIONS,
     get_user_settings,
     update_module_setting,
     get_reminder_settings,
-    update_reminder_setting
+    update_reminder_setting,
+    get_drug_slots,
+    save_drug_slots
 )
 
 st.set_page_config(page_title="設定", page_icon="⚙️")
@@ -65,6 +68,32 @@ if new_enabled:
     new_days = st.slider("檢查天數", min_value=1, max_value=30, value=min(reminder_days, 30), step=1, help="從幾天前開始檢查漏填紀錄")
     if new_days != reminder_days:
         update_reminder_setting(user_id, "days_to_check", new_days)
+        st.rerun()
+
+# ===== 用藥時段設定 =====
+if modules.get("drug", True):
+    st.markdown("---")
+    st.subheader("💊 用藥時段設定")
+    st.caption("勾選您每天應服藥的時段，系統會據此偵測哪個時段漏填。")
+    st.caption("如果不勾選，系統只會偵測「整天有沒有填」。")
+
+    current_drug_slots = get_drug_slots(user_id)
+
+    col1, col2, col3, col4 = st.columns(4)
+    new_slots = []
+
+    for i, slot in enumerate(DRUG_SLOT_OPTIONS):
+        with [col1, col2, col3, col4][i]:
+            checked = st.checkbox(
+                slot,
+                value=(slot in current_drug_slots),
+                key=f"drug_slot_{slot}"
+            )
+            if checked:
+                new_slots.append(slot)
+
+    if sorted(new_slots) != sorted(current_drug_slots):
+        save_drug_slots(user_id, new_slots)
         st.rerun()
 
 st.markdown("---")

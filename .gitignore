@@ -1,7 +1,8 @@
 firebase/
 *.claude
 an-an-5cf88-firebase-adminsdk-fbsvc-0362250554.json
-app_pra.py
 .DS_Store
 __pycache__/
 pages/html_1.html
+streamlit-ui-designer/
+台灣易讀指南.md

@@ -50,6 +50,11 @@ DATA_TYPES = {
         "columns": ["id", "bmi", "filltime"],
         "display_name": "BMI"
     },
+    "Symptom": {
+        "node": "Symptom",
+        "columns": ["id", "symptomname", "duration", "symptomtime", "filltime"],
+        "display_name": "症狀"
+    },
 }
 
 

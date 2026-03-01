@@ -1,37 +1,53 @@
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime
 from export_records import DATA_TYPES
 
 
-# 各模組要繪製的數值欄位
+# 各模組要繪製的數值欄位與設定
 CHART_COLUMNS = {
     "HeartRate": {
         "columns": {"mmHg1": "收縮壓", "mmHg2": "舒張壓", "bpm": "心率"},
         "chart_type": "line",
+        "units": {"mmHg1": "mmHg", "mmHg2": "mmHg", "bpm": "bpm"},
+        "colors": {"mmHg1": "#FF6B6B", "mmHg2": "#4ECDC4", "bpm": "#FFE66D"}
     },
     "Weight": {
-        "columns": {"wei": "體重(kg)", "wai": "腰圍(cm)"},
+        "columns": {"wei": "體重", "wai": "腰圍"},
         "chart_type": "line",
+        "units": {"wei": "kg", "wai": "cm"},
+        "colors": {"wei": "#1A535C", "wai": "#FF6B6B"}
     },
     "Sugar": {
-        "columns": {"sugarlevel": "血糖(mg/dL)"},
+        "columns": {"sugarlevel": "血糖"},
         "chart_type": "line",
+        "units": {"sugarlevel": "mg/dL"},
+        "colors": {"sugarlevel": "#FF9F1C"}
     },
     "Temp": {
-        "columns": {"temp": "體溫(°C)"},
+        "columns": {"temp": "體溫"},
         "chart_type": "line",
+        "units": {"temp": "°C"},
+        "colors": {"temp": "#FF6B6B"}
     },
     "BodyFat": {
-        "columns": {"bodyfat": "體脂(%)"},
+        "columns": {"bodyfat": "體脂"},
         "chart_type": "line",
+        "units": {"bodyfat": "%"},
+        "colors": {"bodyfat": "#2EC4B6"}
     },
     "Muscle": {
-        "columns": {"muscle": "骨骼肌(kg)"},
+        "columns": {"muscle": "骨骼肌"},
         "chart_type": "line",
+        "units": {"muscle": "kg"},
+        "colors": {"muscle": "#CBF3F0"}
     },
     "BMI": {
         "columns": {"bmi": "BMI"},
         "chart_type": "line",
+        "units": {"bmi": ""},
+        "colors": {"bmi": "#2B2D42"}
     },
     "Drug": {
         "columns": {},
@@ -47,9 +63,7 @@ CHART_COLUMNS = {
 def records_to_dataframe(records, data_type):
     """
     將記錄列表轉為 DataFrame，以 filltime 解析為 datetime index。
-
-    回傳適合 st.line_chart 的 DataFrame（欄位已重命名為中文）。
-    若無資料回傳 None。
+    回傳適合繪圖的 DataFrame（欄位已重命名為中文）。
     """
     if not records:
         return None
@@ -70,14 +84,17 @@ def records_to_dataframe(records, data_type):
     # 只保留需要的欄位，轉為數值
     rename_map = config["columns"]
     cols_to_keep = list(rename_map.keys())
+    
+    # 確保數值欄位存在且轉型
     for col in cols_to_keep:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
-
+    
     existing_cols = [c for c in cols_to_keep if c in df.columns]
     if not existing_cols:
         return None
 
+    # 重命名欄位
     result = df[["時間"] + existing_cols].copy()
     result = result.rename(columns=rename_map)
     result = result.set_index("時間")
@@ -85,11 +102,342 @@ def records_to_dataframe(records, data_type):
     return result
 
 
+def create_plotly_line_chart(df, data_type):
+    """
+    使用 Plotly 繪製折線圖
+    """
+    if df is None or df.empty:
+        return None
+
+    config = CHART_COLUMNS.get(data_type, {})
+    units = config.get("units", {})
+    colors = config.get("colors", {})
+    
+    # 建立 Figure
+    fig = go.Figure()
+
+    # 針對每個欄位畫一條線
+    for col_name in df.columns:
+        # 找對應的原始欄位key (為了拿單位和顏色)
+        original_key = None
+        for k, v in config["columns"].items():
+            if v == col_name:
+                original_key = k
+                break
+        
+        unit = units.get(original_key, "")
+        color = colors.get(original_key, None)
+        
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df[col_name],
+            mode='lines+markers',
+            name=col_name,
+            line=dict(width=3, color=color),
+            marker=dict(size=6),
+            hovertemplate=f"<b>%{{x|%m/%d %H:%M}}</b><br>{col_name}: %{{y}} {unit}<extra></extra>"
+        ))
+
+    # 更新 layout
+    fig.update_layout(
+        hovermode="x unified",
+        margin=dict(l=20, r=20, t=30, b=20),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        ),
+        xaxis_title="時間",
+        yaxis_title="數值",
+        template="plotly_white"
+    )
+    
+    # RWD
+    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#eee')
+    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#eee')
+
+    return fig
+
+
+from plotly.subplots import make_subplots
+
+def create_combined_chart(df, data_type, drug_records):
+    """
+    建立合併圖表：
+    1. 上層：數值折線圖 (背景色顯示當日服藥達成率)
+    2. 下層：詳細用藥熱力圖 (早/午/晚/睡前)
+    """
+    if df is None or df.empty:
+        return None
+
+    config = CHART_COLUMNS.get(data_type, {})
+    units = config.get("units", {})
+    colors = config.get("colors", {})
+
+    # ── 處理用藥資料 ──
+    # 建立日期索引的 Compliance 資料
+    # compliance_map = { "2024-02-18": 0.75 }  (4餐吃3餐 = 0.75)
+    # detail_map = { "2024-02-18": {"早": 1, "午": 0 ...} }
+    
+    compliance_map = {}
+    detail_map = {}
+    
+    TIME_SLOTS = ["早", "午", "晚", "睡前"]
+    
+    # 為了對齊，需要知道圖表的時間範圍
+    # 這裡我們用 df 的時間範圍，加上 drug_records 的範圍
+    # 但為了簡化，我們先處理 drug_records
+    
+    if drug_records:
+        for r in drug_records:
+            dt = _parse_filltime(r.get("filltime", ""))
+            eattime = r.get("eattime", "").strip()
+            if dt and eattime in TIME_SLOTS:
+                date_str = dt.strftime("%Y-%m-%d")
+                
+                if date_str not in detail_map:
+                    detail_map[date_str] = {s: 0 for s in TIME_SLOTS}
+                detail_map[date_str][eattime] = 1
+
+        # 計算達成率 (假設一天 4 次為基準，或根據當天應服次數？這裡先假設 4 次)
+        # 如果要更精確，應該看該使用者設定一天吃幾次，但這裡先用簡單邏輯：
+        # 當天有紀錄的次數 / 4
+        for d_str, slots in detail_map.items():
+            taken_count = sum(slots.values())
+            compliance_map[d_str] = taken_count / 4.0
+
+    # ── 建立 Subplots ──
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.05,
+        row_heights=[0.8, 0.2], # 上面折線圖佔 80%，下面熱力圖佔 20%
+        subplot_titles=("趨勢與用藥達成率 (背景色)", "詳細用藥時段")
+    )
+
+    # ── 1. 繪製折線圖 (上層) ──
+    for col_name in df.columns:
+        original_key = None
+        for k, v in config["columns"].items():
+            if v == col_name:
+                original_key = k
+                break
+        
+        unit = units.get(original_key, "")
+        color = colors.get(original_key, None)
+        
+        fig.add_trace(go.Scatter(
+            x=df.index,
+            y=df[col_name],
+            mode='lines+markers',
+            name=col_name,
+            line=dict(width=3, color=color),
+            marker=dict(size=6),
+            hovertemplate=f"{col_name}: %{{y}} {unit}<extra></extra>"
+        ), row=1, col=1)
+
+    # ── 背景色 (依據用藥達成率) ──
+    # 我們遍歷 df 的每一天 (或圖表範圍的每一天)
+    # 為了畫長方形 (vrect)，我們需要 x0 和 x1
+    # 這裡我們用 x 軸的每個點前後半天來畫
+    
+    # 取得完整的日期範圍 (聯集)
+    all_dates = set(df.index.strftime("%Y-%m-%d"))
+    all_dates.update(compliance_map.keys())
+    sorted_date_strs = sorted(list(all_dates))
+    
+    for d_str in sorted_date_strs:
+        rate = compliance_map.get(d_str, 0.0) # 預設沒吃 (0.0)
+        
+        # 顏色邏輯
+        # 1.0 (全吃) -> 綠色 (opacity低一點)
+        # > 0 (有吃但沒吃完) -> 黃色
+        # 0 (沒吃) -> 紅色 或 透明 (看需求，使用者說白色或紅色)
+        
+        fill_color = None
+        opacity = 0.0
+        
+        if rate == 1.0:
+            fill_color = "rgba(76, 175, 80, 0.2)" # Green
+            opacity = 1
+        elif rate > 0:
+            fill_color = "rgba(255, 235, 59, 0.2)" # Yellow
+            opacity = 1
+        else:
+            # 沒吃藥：這裡可以設為淡紅，或留白
+            # 使用者說：沒吃藥是白色（或紅色）
+            fill_color = "rgba(255, 82, 82, 0.1)" # Red (very light)
+            opacity = 1
+
+        # 每個日期的區間：當天 00:00 到 23:59
+        # Plotly 若 x 軸是 datetime，可以直接用字串
+        d_start = d_str + " 00:00"
+        d_end = d_str + " 23:59"
+        
+        if fill_color:
+            fig.add_vrect(
+                x0=d_start, x1=d_end,
+                fillcolor=fill_color,
+                layer="below", line_width=0,
+                row=1, col=1
+            )
+
+    # ── 2. 繪製熱力圖 (下層) ──
+    # 準備 Heatmap 數據
+    # X: 日期, Y: 時段
+    if sorted_date_strs:
+        z = []
+        for slot in TIME_SLOTS:
+            row_vals = []
+            for d_str in sorted_date_strs:
+                val = detail_map.get(d_str, {}).get(slot, 0)
+                row_vals.append(val)
+            z.append(row_vals)
+            
+        custom_colorscale = [[0, '#f0f0f0'], [1, '#4caf50']]
+        
+        fig.add_trace(go.Heatmap(
+            z=z,
+            x=sorted_date_strs,
+            y=TIME_SLOTS,
+            colorscale=custom_colorscale,
+            showscale=False,
+            xgap=1, ygap=1,
+            hovertemplate="日期: %{x}<br>時段: %{y}<br>狀態: %{z}<extra></extra>"
+        ), row=2, col=1)
+
+    # ── Layout 設定 ──
+    fig.update_layout(
+        hovermode="x unified",
+        margin=dict(l=20, r=20, t=50, b=20),
+        height=500, # 稍微高一點
+        showlegend=True,
+        template="plotly_white",
+        legend=dict(orientation="h", y=1.1)
+    )
+    
+    return fig
+
+
+def create_plot_line_chart(df, data_type):
+    # Backward compatibility or unused, keep for now if needed, 
+    # but create_plotly_line_chart is what we used before.
+    return create_plotly_line_chart(df, data_type)
+
+
+def create_drug_heatmap_chart(records, start_date, end_date):
+    """
+    使用 Plotly 繪製用藥熱力圖
+    """
+    if not records:
+        return None
+
+    TIME_SLOTS = ["早", "午", "晚", "睡前"]
+    
+    # 整理資料
+    date_slot_matrix = []
+    dates = []
+    
+    # 找出所有日期範圍內的日期
+    # 若 records 很多，直接用 records 的日期
+    # 這裡簡單處理：掃描 records 建立矩陣
+    
+    compliance = {}
+    for r in records:
+        dt = _parse_filltime(r.get("filltime", ""))
+        eattime = r.get("eattime", "").strip()
+        if dt and eattime in TIME_SLOTS:
+            date_str = dt.strftime("%Y-%m-%d")
+            if date_str not in compliance:
+                compliance[date_str] = {slot: 0 for slot in TIME_SLOTS}
+            compliance[date_str][eattime] = 1 # 1 表示有吃
+
+    if not compliance:
+        return None
+        
+    # 轉為列表供 heatmap 使用
+    sorted_dates = sorted(compliance.keys())
+    
+    z_values = [] # 顏色值 (0/1)
+    text_values = [] # 顯示文字 (V/Empty)
+    
+    # 轉置矩陣：X軸=日期，Y軸=時段
+    # Plotly Heatmap x=dates, y=slots
+    
+    # 準備 4 個時段的數據列
+    slot_data = {s: [] for s in TIME_SLOTS}
+    
+    for d in sorted_dates:
+        for s in TIME_SLOTS:
+            val = compliance[d].get(s, 0)
+            slot_data[s].append(val)
+
+    # 構建 z 矩陣 (y 軸是時段，所以是 4 列)
+    z = [slot_data[s] for s in TIME_SLOTS]
+    
+    # 自定義顏色：0=白/淺灰, 1=綠
+    colorscale = [[0, '#f0f0f0'], [1, '#4caf50']]
+    
+    fig = go.Figure(data=go.Heatmap(
+        z=z,
+        x=sorted_dates,
+        y=TIME_SLOTS,
+        colorscale=colorscale,
+        showscale=False,
+        xgap=2, # 格子間距
+        ygap=2,
+        hovertemplate="日期: %{x}<br>時段: %{y}<br>狀態: 已服藥<extra></extra>"
+    ))
+    
+    fig.update_layout(
+        title="近期用藥達成狀況",
+        height=300,
+        margin=dict(l=20, r=20, t=40, b=20),
+        xaxis_type='category' # 確保日期顯示完整
+    )
+    
+    return fig
+
+
+def create_emotion_bar_chart(records):
+    """
+    生活紀錄：情緒分布長條圖
+    """
+    if not records:
+        return None
+        
+    emotions = [r.get("emotion", "未記錄") for r in records if r.get("emotion")]
+    if not emotions:
+        return None
+    
+    df = pd.DataFrame({"情緒": emotions})
+    counts = df["情緒"].value_counts().reset_index()
+    counts.columns = ["情緒", "次數"]
+    
+    fig = px.bar(
+        counts, 
+        x="情緒", 
+        y="次數", 
+        color="情緒",
+        text="次數",
+        title="情緒分布"
+    )
+    
+    fig.update_traces(textposition='outside')
+    fig.update_layout(
+        showlegend=False,
+        margin=dict(l=20, r=20, t=40, b=20),
+        height=300
+    )
+    
+    return fig
+
+
 def get_summary_stats(df):
     """
     計算 DataFrame 各欄位的摘要統計。
-
-    回傳 dict: {欄位名: {"平均": x, "最高": x, "最低": x, "筆數": n}}
     """
     if df is None or df.empty:
         return {}
@@ -104,65 +452,9 @@ def get_summary_stats(df):
             "最高": round(numeric.max(), 1),
             "最低": round(numeric.min(), 1),
             "筆數": len(numeric),
+            "最新": round(numeric.iloc[-1], 1) if not numeric.empty else 0
         }
     return stats
-
-
-def get_drug_compliance_table(records, start_date, end_date):
-    """
-    用藥記錄：建立每日 × 時段的服藥遵從表。
-
-    回傳 DataFrame，index=日期(str), columns=["早","午","晚","睡前"]。
-    值為 "V"（有吃）或 ""（沒吃）。
-    若無資料回傳 None。
-    """
-    if not records:
-        return None
-
-    TIME_SLOTS = ["早", "午", "晚", "睡前"]
-
-    # 收集每日每時段是否有紀錄
-    compliance = {}
-    for r in records:
-        dt = _parse_filltime(r.get("filltime", ""))
-        eattime = r.get("eattime", "").strip()
-        if dt and eattime in TIME_SLOTS:
-            date_str = dt.strftime("%m/%d")
-            if date_str not in compliance:
-                compliance[date_str] = {slot: "" for slot in TIME_SLOTS}
-            compliance[date_str][eattime] = "V"
-
-    if not compliance:
-        return None
-
-    # 按日期排序
-    df = pd.DataFrame.from_dict(compliance, orient="index")
-    df = df[TIME_SLOTS]  # 確保欄位順序
-    df.index.name = "日期"
-    df = df.sort_index()
-
-    return df
-
-
-def get_life_emotion_counts(records):
-    """
-    生活紀錄：計算情緒分布。
-
-    回傳 DataFrame，index=情緒, columns=["次數"]。
-    若無資料回傳 None。
-    """
-    if not records:
-        return None
-
-    emotions = [r.get("emotion", "未記錄") for r in records if r.get("emotion")]
-    if not emotions:
-        return None
-
-    df = pd.DataFrame({"情緒": emotions})
-    counts = df.groupby("情緒").size().reset_index(name="次數")
-    counts = counts.set_index("情緒")
-
-    return counts
 
 
 def _parse_filltime(filltime_str):
@@ -170,7 +462,6 @@ def _parse_filltime(filltime_str):
     if not filltime_str:
         return None
     try:
-        # 處理有秒數的格式 "2024-01-20 14:30:00"
         if len(filltime_str) > 16:
             return datetime.strptime(filltime_str[:16], "%Y-%m-%d %H:%M")
         return datetime.strptime(filltime_str, "%Y-%m-%d %H:%M")

@@ -200,13 +200,25 @@ def main_menu():
 
         # 把所有待補填項目整理成列表，按日期排序
         all_missing = []
-        for module_key, dates in missing_records.items():
-            for date in dates:
-                all_missing.append({
-                    "date": date,
-                    "module_key": module_key,
-                    "module_name": MODULE_NAMES.get(module_key, module_key)
-                })
+        for module_key, dates_or_slots in missing_records.items():
+            if module_key == "drug" and dates_or_slots and isinstance(dates_or_slots[0], dict):
+                # 時段級別的用藥漏填
+                for item in dates_or_slots:
+                    all_missing.append({
+                        "date": item["date"],
+                        "module_key": "drug",
+                        "module_name": f"用藥-{item['slot']}",
+                        "slot": item["slot"]
+                    })
+            else:
+                # 其他模組（或無時段設定的 drug）
+                for date in dates_or_slots:
+                    all_missing.append({
+                        "date": date,
+                        "module_key": module_key,
+                        "module_name": MODULE_NAMES.get(module_key, module_key),
+                        "slot": None
+                    })
 
         # 按日期降序排列（最近的在前）
         all_missing.sort(key=lambda x: x["date"], reverse=True)
@@ -214,13 +226,18 @@ def main_menu():
         # 只顯示前 10 筆，避免太長
         display_limit = 10
         for item in all_missing[:display_limit]:
+            btn_key = f"backfill_{item['module_key']}_{item['date']}"
+            if item["slot"]:
+                btn_key += f"_{item['slot']}"
             if st.button(
                 f"📝 {item['date']} {item['module_name']}",
-                key=f"backfill_{item['module_key']}_{item['date']}",
+                key=btn_key,
                 width='stretch'
             ):
                 # 儲存補填日期到 session state，然後跳轉
                 st.session_state.backfill_date = item["date"]
+                if item["slot"]:
+                    st.session_state.backfill_slot = item["slot"]
                 page_path = MODULE_PAGES.get(item["module_key"])
                 if page_path:
                     st.switch_page(page_path)
@@ -240,21 +257,31 @@ def main_menu():
         st.page_link("pages/0_⚙️_設定.py", label="⚙️ 前往設定", width='stretch')
     else:
         cols = st.columns(len(today_status))
-        for i, (module_key, is_filled) in enumerate(today_status.items()):
+        for i, (module_key, status) in enumerate(today_status.items()):
             with cols[i]:
                 module_name = MODULE_NAMES.get(module_key, module_key)
                 icon = MODULE_ICONS.get(module_key, "📝")
                 page_path = MODULE_PAGES.get(module_key)
 
-                if is_filled:
-                    # 已填寫 - 綠色按鈕
+                if module_key == "drug" and isinstance(status, dict):
+                    # 用藥有時段設定，部分填寫
+                    filled = status["filled"]
+                    missing = status["missing"]
+                    filled_text = "、".join(filled) if filled else "無"
+                    st.page_link(
+                        page_path,
+                        label=f"⚠️ {icon}\n{module_name}\n已填: {filled_text}\n缺: {'、'.join(missing)}",
+                        width='stretch'
+                    )
+                elif status is True:
+                    # 已填寫
                     st.page_link(
                         page_path,
                         label=f"✅ {icon}\n{module_name}完成",
                         width='stretch'
                     )
                 else:
-                    # 未填寫 - 用按鈕讓它更明顯
+                    # 未填寫
                     st.page_link(
                         page_path,
                         label=f"❌{icon}\n{module_name}",
@@ -267,7 +294,7 @@ def main_menu():
     with col1:
         st.page_link("pages/0_⚙️_設定.py", label="⚙️ 設定", width='stretch')
     with col2:
-        st.page_link("pages/7_📊_圖表與匯出.py", label="📊_圖表與匯出", width='stretch')
+        st.page_link("pages/8_📊_圖表與匯出.py", label="📊 圖表與匯出", width='stretch')
 
     # ==== 登出 ====
     st.write("")

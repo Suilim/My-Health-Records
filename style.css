@@ -1,0 +1,70 @@
+/* ============================================
+   我的健康紀錄 App — 全域樣式
+   色彩系統：
+     primaryColor:         #7A99C4 （淺藍）
+     textColor:            #020B5C （深藍）
+     backgroundColor:      #F9F7F6 （淺灰棕）
+     secondaryBackground:  #FFFFFF （白）
+     accentColor:          #F7DF75 （鵝黃強調）
+     mutedText:            #5A6A8A （灰藍，輔助說明用）
+   ============================================ */
+
+/* ---- 基礎字型與行高 ---- */
+body, .stApp {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #020B5C;
+}
+
+p, li, span, label {
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+/* ---- 按鈕最小點擊高度（手機易點按） ---- */
+.stButton > button {
+    font-size: 16px !important;
+    min-height: 48px !important;
+}
+
+/* ---- 輸入欄位字型 ---- */
+.stTextInput > div > div > input {
+    font-size: 16px !important;
+    min-height: 44px !important;
+}
+
+/* ---- 補填通知盒（鵝黃，取代紅色 error） ---- */
+.notice-box {
+    background-color: #FFF8E1;
+    border-left: 4px solid #F7DF75;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    font-size: 16px;
+    color: #020B5C;
+}
+
+/* ---- 柔和提示文字（取代 st.error） ---- */
+.soft-warning {
+    color: #7A5C00;
+    background-color: #FFFBEB;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 16px;
+    margin: 8px 0;
+}
+
+/* ---- 輔助說明文字 ---- */
+.soft-hint {
+    font-size: 15px;
+    color: #5A6A8A;
+    margin-top: 4px;
+}
+
+/* ---- 手機響應式 ---- */
+@media (max-width: 480px) {
+    .stButton > button {
+        font-size: 16px !important;
+        min-height: 52px !important;
+    }
+}

@@ -4,3 +4,4 @@ plotly
 firebase-admin
 openpyxl
 watchdog
+streamlit_calendar

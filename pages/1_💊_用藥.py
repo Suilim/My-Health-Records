@@ -93,7 +93,7 @@ with tab1:
     st.subheader("新增用藥紀錄")
 
     # ----- 選擇時段（自動帶入最近同時段紀錄）-----
-    slot_options = ["早", "午", "晚", "睡前"]
+    slot_options = ["早", "午", "晚", "睡前", "需要時"]
     default_index = 0
     if prefill_slot and prefill_slot in slot_options:
         default_index = slot_options.index(prefill_slot)
@@ -251,7 +251,7 @@ with tab2:
                             # 編輯模式
                             edit_name = st.text_input("藥名", value=r["drugname"], key=f"edit_name_{filltime}", label_visibility="collapsed")
                             edit_pieces = st.number_input("數量", value=float(r["drugpieces"]) if r["drugpieces"] else 1.0, min_value=0.5, step=0.5, format="%.1f", key=f"edit_pieces_{filltime}", label_visibility="collapsed")
-                            edit_eattime = st.selectbox("時段", ["早", "午", "晚", "睡前"], index=["早", "午", "晚", "睡前"].index(r["eattime"]) if r["eattime"] in ["早", "午", "晚", "睡前"] else 0, key=f"edit_eattime_{filltime}", label_visibility="collapsed")
+                            edit_eattime = st.selectbox("時段", ["早", "午", "晚", "睡前", "需要時"], index=["早", "午", "晚", "睡前", "需要時"].index(r["eattime"]) if r["eattime"] in ["早", "午", "晚", "睡前", "需要時"] else 0, key=f"edit_eattime_{filltime}", label_visibility="collapsed")
                             col_save, col_cancel = st.columns(2)
                             with col_save:
                                 if st.button("💾 儲存", key=f"save_{filltime}", width='stretch', type="primary"):

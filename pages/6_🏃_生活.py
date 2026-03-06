@@ -35,15 +35,15 @@ tab1, tab2 = st.tabs(["📝 新增紀錄", "📋 歷史紀錄"])
 with tab1:
     st.subheader("新增生活紀錄")
 
-    # 情緒選擇
-    st.markdown("**今天的心情如何？**")
-    emotion_options = ["😊 開心", "😐 普通", "😢 難過", "😠 生氣", "😰 焦慮", "😴 疲倦"]
-    emotion = st.radio(
-        "選擇情緒",
-        emotion_options,
-        horizontal=True,
-        label_visibility="collapsed"
-    )
+    # 情緒選擇（多選）
+    st.markdown("**今天的心情如何？（可複選）**")
+    emotion_options = [("😊", "開心"), ("😐", "普通"), ("😢", "難過"), ("😠", "生氣"), ("😰", "焦慮"), ("😴", "疲倦")]
+    emotion_cols = st.columns(len(emotion_options))
+    selected_emotions = []
+    for i, (emoji, label) in enumerate(emotion_options):
+        with emotion_cols[i]:
+            if st.checkbox(f"{emoji}\n{label}", key=f"emotion_{label}"):
+                selected_emotions.append(label)
 
     # 生活紀錄內容
     st.markdown("---")
@@ -88,10 +88,8 @@ with tab1:
     # 儲存按鈕
     st.markdown("---")
     if st.button("✅ 儲存紀錄", width='stretch', type="primary"):
-        if full_record.strip():
-            # 取得情緒文字（去掉 emoji）
-            emotion_text = emotion.split(" ")[1] if " " in emotion else emotion
-            # 補填模式用指定日期 + 12:00，否則用當前時間
+        if full_record.strip() or selected_emotions:
+            emotion_text = "、".join(selected_emotions) if selected_emotions else ""
             if is_backfill:
                 save_filltime = f"{fill_date} 12:00"
             else:
@@ -128,17 +126,13 @@ with tab2:
             life_content = r.get("liferecord", "")
             emotion_val = r.get("emotion", "")
 
-            # 情緒對應 emoji
-            emotion_emoji = {
-                "開心": "😊",
-                "普通": "😐",
-                "難過": "😢",
-                "生氣": "😠",
-                "焦慮": "😰",
-                "疲倦": "😴"
-            }.get(emotion_val, "📝")
+            # 情緒對應 emoji（支援多選，以「、」分隔）
+            emoji_map = {"開心": "😊", "普通": "😐", "難過": "😢", "生氣": "😠", "焦慮": "😰", "疲倦": "😴"}
+            emotion_display = " ".join(
+                f"{emoji_map.get(e, '')} {e}" for e in emotion_val.split("、") if e
+            ) if emotion_val else "📝"
 
-            with st.expander(f"📅 {filltime} {emotion_emoji} {emotion_val}"):
+            with st.expander(f"📅 {filltime}　{emotion_display}"):
                 st.write(life_content)
                 if st.button("🗑️ 刪除", key=f"del_lf_{filltime}"):
                     db.reference(f"Life/{user_id}/{filltime}").delete()

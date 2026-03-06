@@ -1,5 +1,6 @@
 import streamlit as st
 from firebase_utils import db
+from write_records import update_user_name, delete_user_all_data
 from settings_utils import (
     MODULE_NAMES,
     DRUG_SLOT_OPTIONS,
@@ -96,9 +97,48 @@ if modules.get("drug", True):
         save_drug_slots(user_id, new_slots)
         st.rerun()
 
+# ===== 帳號管理 =====
 st.markdown("---")
-st.subheader("🏃 運動清單管理")
-st.info("運動清單管理功能開發中...")
+st.subheader("👤 帳號管理")
+
+# 取得目前姓名
+user_info = db.reference(f'User/{user_id}').get() or {}
+current_name = user_info.get("name", "")
+
+# ----- 修改姓名 -----
+with st.expander("✏️ 修改姓名"):
+    new_name = st.text_input("新姓名", value=current_name, key="new_name_input")
+    if st.button("儲存姓名", width="stretch", type="primary"):
+        if new_name.strip():
+            update_user_name(user_id, new_name.strip())
+            st.session_state.user_name = new_name.strip()
+            st.success("姓名已更新！")
+            st.rerun()
+        else:
+            st.warning("姓名不可為空")
+
+# ----- 刪除全部資料 -----
+with st.expander("🗑️ 刪除帳號"):
+    st.warning("刪除後無法復原！帳號與所有健康紀錄將永久刪除。")
+    confirm_delete = st.text_input(
+        f'請輸入您的學員編號「{user_id}」確認刪除',
+        key="confirm_delete_input"
+    )
+    if st.button("確認刪除帳號", type="primary", width="stretch"):
+        if confirm_delete == str(user_id):
+            delete_user_all_data(user_id)
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.switch_page("app.py")
+        else:
+            st.error("學員編號輸入錯誤，請重新確認")
+
+
+st.markdown("---")
+st.subheader("運動紀錄、睡眠紀錄")
+st.info("功能開發中...")
+
+
 
 # 返回首頁
 st.markdown("---")

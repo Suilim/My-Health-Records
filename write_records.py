@@ -22,6 +22,32 @@ def create_user(user_id, name, password):
     })
     print(f"用戶 {user_id} 建立完成")
 
+
+def update_user_name(user_id, new_name):
+    """
+    更新用戶姓名
+    路徑: User/{userId}
+    """
+    ref = db.reference(f'User/{user_id}')
+    ref.update({"name": str(new_name)})
+    print(f"用戶 {user_id} 姓名更新為: {new_name}")
+
+
+def delete_user_all_data(user_id):
+    """
+    刪除使用者帳號及所有資料
+    路徑: User/{userId}、Settings/{userId}、各資料節點/{userId}
+    """
+    data_nodes = [
+        "Sugar", "Weight", "BodyFat", "Muscle", "BMI",
+        "HeartRate", "Temp", "Drug", "Life", "Symptom"
+    ]
+    for node in data_nodes:
+        db.reference(f'{node}/{user_id}').delete()
+    db.reference(f'Settings/{user_id}').delete()
+    db.reference(f'User/{user_id}').delete()
+    print(f"用戶 {user_id} 帳號及所有資料已刪除")
+
     # 初始化用戶設定 - 預設啟用所有模組
     settings_ref = db.reference(f'Settings/{user_id}')
     settings_ref.set({

@@ -24,7 +24,10 @@ else:
     fill_date = datetime.now().strftime("%Y-%m-%d")
 
 # 持續時間選項
-DURATION_OPTIONS = ["很快就過了（幾分鐘內）", "一段時間（幾十分鐘）", "很久（超過一小時）", "不確定"]
+DURATION_OPTIONS = ["10分鐘以內", "1小時", "半天", "一天", "不確定"]
+
+# 發生時段選項
+TIME_SLOT_OPTIONS = ["早", "中", "晚"]
 
 # 初始化 session state
 if "symptom_list" not in st.session_state:
@@ -116,14 +119,14 @@ with tab1:
         with st.container(border=True):
             st.caption(f"📋 上次紀錄（{prev_date}）：" + "、".join(s["name"] for s in prev_symptoms))
             if st.button("套用上次清單", width='stretch'):
-                # 套用時將發生時間更新為今天（保留原時間的 HH:MM）
+                # 套用時將發生時間更新為今天（保留原時段）
                 updated = []
                 for s in prev_symptoms:
-                    old_time = s["symptomtime"].split(" ")[1] if " " in s["symptomtime"] else "00:00"
+                    old_slot = s["symptomtime"] if s["symptomtime"] in TIME_SLOT_OPTIONS else "早"
                     updated.append({
                         "name": s["name"],
                         "duration": s["duration"],
-                        "symptomtime": f"{fill_date} {old_time}"
+                        "symptomtime": old_slot
                     })
                 st.session_state.symptom_list = updated
                 st.rerun()
@@ -141,27 +144,26 @@ with tab1:
                         value=symptom["name"],
                         key=f"edit_symptom_name_{i}"
                     )
-                    # 解析已存的時間
-                    try:
-                        existing_time = datetime.strptime(symptom["symptomtime"], "%Y-%m-%d %H:%M").time()
-                    except Exception:
-                        existing_time = datetime.now().time()
-                    edit_time = st.time_input(
-                        "發生時間",
-                        value=existing_time,
+                    existing_slot = symptom["symptomtime"] if symptom["symptomtime"] in TIME_SLOT_OPTIONS else "早"
+                    edit_time_slot = st.radio(
+                        "發生時段",
+                        TIME_SLOT_OPTIONS,
+                        index=TIME_SLOT_OPTIONS.index(existing_slot),
+                        horizontal=True,
                         key=f"edit_symptom_time_{i}"
                     )
-                    edit_duration = st.selectbox(
-                        "持續多久？",
+                    edit_duration = st.radio(
+                        "這次持續多久？",
                         DURATION_OPTIONS,
-                        index=DURATION_OPTIONS.index(symptom["duration"]) if symptom["duration"] in DURATION_OPTIONS else 3,
+                        index=DURATION_OPTIONS.index(symptom["duration"]) if symptom["duration"] in DURATION_OPTIONS else 4,
+                        horizontal=True,
                         key=f"edit_symptom_duration_{i}"
                     )
                     col1, col2 = st.columns(2)
                     with col1:
                         if st.button("💾 儲存", key=f"save_symptom_{i}", width='stretch'):
                             st.session_state.symptom_list[i]["name"] = edit_name
-                            st.session_state.symptom_list[i]["symptomtime"] = f"{fill_date} {edit_time.strftime('%H:%M')}"
+                            st.session_state.symptom_list[i]["symptomtime"] = edit_time_slot
                             st.session_state.symptom_list[i]["duration"] = edit_duration
                             st.session_state.editing_symptom_index = None
                             st.rerun()
@@ -175,8 +177,7 @@ with tab1:
                     col1, col2 = st.columns([5, 2])
                     with col1:
                         st.markdown(f"🤧 **{symptom['name']}**")
-                        time_display = symptom['symptomtime'].split(' ')[1] if ' ' in symptom['symptomtime'] else symptom['symptomtime']
-                        st.caption(f"發生時間：{time_display}　持續：{symptom['duration']}")
+                        st.caption(f"發生時段：{symptom['symptomtime']}　持續：{symptom['duration']}")
                     with col2:
                         btn_col1, btn_col2 = st.columns(2)
                         with btn_col1:
@@ -196,24 +197,24 @@ with tab1:
     st.markdown("**新增一筆**")
     with st.container(border=True):
         new_symptom_name = st.text_input("哪裡不舒服", key="new_symptom_name", placeholder="例如：頭痛、噁心、心悸...")
-        new_symptom_time = st.time_input(
-            "發生時間",
-            value=datetime.now().time(),
-            key="new_symptom_time",
-            help="大約是幾點開始不舒服的？"
+        new_symptom_time_slot = st.radio(
+            "發生時段",
+            TIME_SLOT_OPTIONS,
+            horizontal=True,
+            key="new_symptom_time"
         )
-        new_symptom_duration = st.selectbox(
+        new_symptom_duration = st.radio(
             "這次持續多久？",
             DURATION_OPTIONS,
+            horizontal=True,
             key="new_symptom_duration"
         )
         if st.button("➕ 加入清單", width='stretch', type="secondary"):
             if new_symptom_name.strip():
-                symptom_time_str = f"{fill_date} {new_symptom_time.strftime('%H:%M')}"
                 st.session_state.symptom_list.append({
                     "name": new_symptom_name.strip(),
                     "duration": new_symptom_duration,
-                    "symptomtime": symptom_time_str
+                    "symptomtime": new_symptom_time_slot
                 })
                 st.rerun()
             else:
@@ -236,7 +237,7 @@ with tab1:
                     symptoms_to_save.append({
                         "name": s["name"],
                         "duration": s["duration"],
-                        "symptomtime": fill_date
+                        "symptomtime": s["symptomtime"]
                     })
 
                 add_symptom_records_batch(user_id, symptoms_to_save, filltime=save_filltime)
@@ -308,28 +309,28 @@ with tab2:
                                 value=r.get("symptomname", ""),
                                 key=f"edit_name_{filltime}"
                             )
-                            try:
-                                existing_stime = datetime.strptime(r.get("symptomtime", ""), "%Y-%m-%d %H:%M").time()
-                            except Exception:
-                                existing_stime = datetime.now().time()
-                            edit_stime = st.time_input(
-                                "發生時間",
-                                value=existing_stime,
+                            current_slot = r.get("symptomtime", "早")
+                            if current_slot not in TIME_SLOT_OPTIONS:
+                                current_slot = "早"
+                            edit_stime = st.radio(
+                                "發生時段",
+                                TIME_SLOT_OPTIONS,
+                                index=TIME_SLOT_OPTIONS.index(current_slot),
+                                horizontal=True,
                                 key=f"edit_stime_{filltime}"
                             )
                             current_duration = r.get("duration", "不確定")
-                            edit_duration = st.selectbox(
+                            edit_duration = st.radio(
                                 "持續多久？",
                                 DURATION_OPTIONS,
-                                index=DURATION_OPTIONS.index(current_duration) if current_duration in DURATION_OPTIONS else 3,
+                                index=DURATION_OPTIONS.index(current_duration) if current_duration in DURATION_OPTIONS else 4,
+                                horizontal=True,
                                 key=f"edit_duration_{filltime}"
                             )
                             col1, col2 = st.columns(2)
                             with col1:
                                 if st.button("💾 儲存", key=f"save_{filltime}", width='stretch'):
-                                    date_part = r.get("symptomtime", fill_date).split(" ")[0]
-                                    new_stime_str = f"{date_part} {edit_stime.strftime('%H:%M')}"
-                                    update_symptom_record(user_id, filltime, edit_name, edit_duration, new_stime_str)
+                                    update_symptom_record(user_id, filltime, edit_name, edit_duration, edit_stime)
                                     st.session_state.edit_mode = None
                                     st.success("更新成功！")
                                     st.rerun()
@@ -343,9 +344,7 @@ with tab2:
                             col1, col2 = st.columns([5, 2])
                             with col1:
                                 st.markdown(f"🤧 **{r.get('symptomname', '（未填）')}**")
-                                stime_raw = r.get("symptomtime", "")
-                                stime_display = stime_raw.split(" ")[1] if " " in stime_raw else stime_raw
-                                st.caption(f"發生時間：{stime_display}　持續：{r.get('duration', '—')}")
+                                st.caption(f"發生時段：{r.get('symptomtime', '—')}　持續：{r.get('duration', '—')}")
                             with col2:
                                 btn_col1, btn_col2 = st.columns(2)
                                 with btn_col1:

@@ -138,7 +138,7 @@ with tab1:
                 if is_editing:
                     # 編輯模式
                     edit_name = st.text_input("藥名", value=drug["name"], key=f"edit_drug_name_{i}")
-                    edit_pieces = st.number_input("數量", value=int(drug["pieces"]) if str(drug["pieces"]).isdigit() else 1, min_value=1, key=f"edit_drug_pieces_{i}")
+                    edit_pieces = st.number_input("數量", value=float(drug["pieces"]) if drug["pieces"] else 1.0, min_value=0.5, step=0.5, format="%.1f", key=f"edit_drug_pieces_{i}")
                     col_save, col_cancel = st.columns(2)
                     with col_save:
                         if st.button("💾 儲存", key=f"save_drug_{i}", width='stretch', type="primary"):
@@ -171,7 +171,7 @@ with tab1:
     with col1:
         new_drug_name = st.text_input("新增藥物名稱", key="new_drug_name", placeholder="輸入藥名...")
     with col2:
-        new_drug_pieces = st.number_input("數量", value=1, min_value=1, key="new_drug_pieces")
+        new_drug_pieces = st.number_input("數量", value=1.0, min_value=0.5, step=0.5, format="%.1f", key="new_drug_pieces")
     with col3:
         st.write("")  # 空白占位
         st.write("")
@@ -250,7 +250,7 @@ with tab2:
                         if is_editing:
                             # 編輯模式
                             edit_name = st.text_input("藥名", value=r["drugname"], key=f"edit_name_{filltime}", label_visibility="collapsed")
-                            edit_pieces = st.number_input("數量", value=int(r["drugpieces"]) if str(r["drugpieces"]).isdigit() else 1, min_value=1, key=f"edit_pieces_{filltime}", label_visibility="collapsed")
+                            edit_pieces = st.number_input("數量", value=float(r["drugpieces"]) if r["drugpieces"] else 1.0, min_value=0.5, step=0.5, format="%.1f", key=f"edit_pieces_{filltime}", label_visibility="collapsed")
                             edit_eattime = st.selectbox("時段", ["早", "午", "晚", "睡前"], index=["早", "午", "晚", "睡前"].index(r["eattime"]) if r["eattime"] in ["早", "午", "晚", "睡前"] else 0, key=f"edit_eattime_{filltime}", label_visibility="collapsed")
                             col_save, col_cancel = st.columns(2)
                             with col_save:

@@ -13,9 +13,11 @@ from settings_utils import (
 )
 
 # 頁面設定
+from PIL import Image
+_page_icon = Image.open("logo.png")
 st.set_page_config(
     page_title="我的健康紀錄",
-    page_icon="logo.png",
+    page_icon=_page_icon,
     layout="centered"
 )
 
@@ -187,7 +189,8 @@ def main_menu():
         "sugar": "pages/4_🩸_血糖.py",
         "temp": "pages/5_🌡️_體溫.py",
         "drug": "pages/1_💊_用藥.py",
-        "life": "pages/6_🏃_生活.py"
+        "life": "pages/6_🏃_生活.py",
+        "symptom": "pages/7_🤧_不舒服的地方.py",
     }
 
     # 模組對應的 emoji
@@ -197,7 +200,8 @@ def main_menu():
         "sugar": "🩸",
         "temp": "🌡️",
         "drug": "💊",
-        "life": "🏃"
+        "life": "🏃",
+        "symptom": "🤧",
     }
 
     # ===== 待補填通知 (最上方) =====

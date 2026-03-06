@@ -141,24 +141,24 @@ with tab1:
                     edit_pieces = st.number_input("數量", value=int(drug["pieces"]) if str(drug["pieces"]).isdigit() else 1, min_value=1, key=f"edit_drug_pieces_{i}")
                     col_save, col_cancel = st.columns(2)
                     with col_save:
-                        if st.button("💾 儲存", key=f"save_drug_{i}", use_container_width=True, type="primary"):
+                        if st.button("💾 儲存", key=f"save_drug_{i}", width='stretch', type="primary"):
                             st.session_state.drug_list[i]["name"] = edit_name
                             st.session_state.drug_list[i]["pieces"] = edit_pieces
                             st.session_state.editing_drug_index = None
                             st.rerun()
                     with col_cancel:
-                        if st.button("❌ 取消", key=f"cancel_drug_{i}", use_container_width=True):
+                        if st.button("❌ 取消", key=f"cancel_drug_{i}", width='stretch'):
                             st.session_state.editing_drug_index = None
                             st.rerun()
                 else:
                     # 顯示模式
                     col_edit, col_del = st.columns(2)
                     with col_edit:
-                        if st.button("✏️ 修改", key=f"edit_drug_{i}", use_container_width=True):
+                        if st.button("✏️ 修改", key=f"edit_drug_{i}", width='stretch'):
                             st.session_state.editing_drug_index = i
                             st.rerun()
                     with col_del:
-                        if st.button("🗑️ 刪除", key=f"delete_drug_{i}", use_container_width=True):
+                        if st.button("🗑️ 刪除", key=f"delete_drug_{i}", width='stretch'):
                             st.session_state.drug_list.pop(i)
                             st.session_state.editing_drug_index = None
                             st.rerun()
@@ -254,24 +254,24 @@ with tab2:
                             edit_eattime = st.selectbox("時段", ["早", "午", "晚", "睡前"], index=["早", "午", "晚", "睡前"].index(r["eattime"]) if r["eattime"] in ["早", "午", "晚", "睡前"] else 0, key=f"edit_eattime_{filltime}", label_visibility="collapsed")
                             col_save, col_cancel = st.columns(2)
                             with col_save:
-                                if st.button("💾 儲存", key=f"save_{filltime}", use_container_width=True, type="primary"):
+                                if st.button("💾 儲存", key=f"save_{filltime}", width='stretch', type="primary"):
                                     update_drug_record(user_id, filltime, edit_name, edit_pieces, edit_eattime)
                                     st.session_state.edit_mode = None
                                     st.success("更新成功！")
                                     st.rerun()
                             with col_cancel:
-                                if st.button("❌ 取消", key=f"cancel_{filltime}", use_container_width=True):
+                                if st.button("❌ 取消", key=f"cancel_{filltime}", width='stretch'):
                                     st.session_state.edit_mode = None
                                     st.rerun()
                         else:
                             # 顯示模式
                             col_edit, col_del = st.columns(2)
                             with col_edit:
-                                if st.button("✏️ 修改", key=f"edit_{filltime}", use_container_width=True):
+                                if st.button("✏️ 修改", key=f"edit_{filltime}", width='stretch'):
                                     st.session_state.edit_mode = filltime
                                     st.rerun()
                             with col_del:
-                                if st.button("🗑️ 刪除", key=f"del_{filltime}", use_container_width=True):
+                                if st.button("🗑️ 刪除", key=f"del_{filltime}", width='stretch'):
                                     delete_drug_record(user_id, filltime)
                                     st.success("刪除成功！")
                                     st.rerun()

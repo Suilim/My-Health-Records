@@ -53,7 +53,7 @@ DATA_TYPES = {
     "Symptom": {
         "node": "Symptom",
         "columns": ["id", "symptomname", "duration", "symptomtime", "filltime"],
-        "display_name": "症狀"
+        "display_name": "不舒服的地方"
     },
 }
 

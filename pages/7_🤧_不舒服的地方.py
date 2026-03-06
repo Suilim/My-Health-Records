@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from write_records import add_symptom_records_batch, update_symptom_record, delete_symptom_record
 from export_records import get_user_records
 
-st.set_page_config(page_title="症狀紀錄", page_icon="🤧", layout="wide")
+st.set_page_config(page_title="不舒服的地方", page_icon="🤧", layout="wide")
 
 # 檢查登入狀態
 if "logged_in" not in st.session_state or not st.session_state.logged_in:
@@ -75,7 +75,7 @@ def save_no_symptom(user_id, fill_date, is_backfill):
         "symptomtime": fill_date
     }], filltime=save_filltime)
 
-st.title("🤧 症狀紀錄")
+st.title("🤧 不舒服的地方")
 if is_backfill:
     st.warning(f"📝 補填日期：**{fill_date}**")
 st.markdown(f"**學員編號：** {user_id}")
@@ -85,8 +85,8 @@ tab1, tab2 = st.tabs(["📝 新增紀錄", "📋 歷史紀錄"])
 
 # ==================== Tab 1: 新增紀錄 ====================
 with tab1:
-    st.subheader("新增症狀紀錄")
-    st.caption("可一次新增多筆症狀，填完後統一儲存")
+    st.subheader("新增紀錄")
+    st.caption("可以一次新增多筆，填完後統一儲存")
 
     st.markdown("---")
 
@@ -96,11 +96,11 @@ with tab1:
     already_has_symptom = any(r.get("symptomname") != NO_SYMPTOM_MARKER for r in today_records)
 
     if already_no_symptom:
-        st.success(f"✅ **{fill_date}** 已記錄「今日無症狀」")
+        st.success(f"✅ **{fill_date}** 已記錄「今日沒有不舒服」")
     elif already_has_symptom:
-        st.info(f"ℹ️ **{fill_date}** 已有症狀紀錄，如需記錄「無症狀」請先刪除現有紀錄")
+        st.info(f"ℹ️ **{fill_date}** 已有紀錄，如需記錄「今日沒有不舒服」請先刪除現有紀錄")
     else:
-        if st.button("✅ 今日無症狀", use_container_width=True, type="primary"):
+        if st.button("✅ 今日沒有不舒服", width='stretch', type="primary"):
             save_no_symptom(user_id, fill_date, is_backfill)
             if "backfill_date" in st.session_state:
                 del st.session_state.backfill_date
@@ -115,7 +115,7 @@ with tab1:
     if prev_symptoms:
         with st.container(border=True):
             st.caption(f"📋 上次紀錄（{prev_date}）：" + "、".join(s["name"] for s in prev_symptoms))
-            if st.button("套用上次症狀清單", use_container_width=True):
+            if st.button("套用上次清單", width='stretch'):
                 # 套用時將發生時間更新為今天（保留原時間的 HH:MM）
                 updated = []
                 for s in prev_symptoms:
@@ -129,7 +129,7 @@ with tab1:
                 st.rerun()
 
     # ----- 症狀清單編輯區 -----
-    st.markdown("**症狀清單：**")
+    st.markdown("**目前清單：**")
 
     if st.session_state.symptom_list:
         for i, symptom in enumerate(st.session_state.symptom_list):
@@ -137,7 +137,7 @@ with tab1:
                 # 編輯模式
                 with st.container(border=True):
                     edit_name = st.text_input(
-                        "症狀名稱",
+                        "哪裡不舒服",
                         value=symptom["name"],
                         key=f"edit_symptom_name_{i}"
                     )
@@ -159,14 +159,14 @@ with tab1:
                     )
                     col1, col2 = st.columns(2)
                     with col1:
-                        if st.button("💾 儲存", key=f"save_symptom_{i}", use_container_width=True):
+                        if st.button("💾 儲存", key=f"save_symptom_{i}", width='stretch'):
                             st.session_state.symptom_list[i]["name"] = edit_name
                             st.session_state.symptom_list[i]["symptomtime"] = f"{fill_date} {edit_time.strftime('%H:%M')}"
                             st.session_state.symptom_list[i]["duration"] = edit_duration
                             st.session_state.editing_symptom_index = None
                             st.rerun()
                     with col2:
-                        if st.button("取消", key=f"cancel_symptom_{i}", use_container_width=True):
+                        if st.button("取消", key=f"cancel_symptom_{i}", width='stretch'):
                             st.session_state.editing_symptom_index = None
                             st.rerun()
             else:
@@ -180,34 +180,34 @@ with tab1:
                     with col2:
                         btn_col1, btn_col2 = st.columns(2)
                         with btn_col1:
-                            if st.button("✏️", key=f"edit_symptom_{i}", use_container_width=True):
+                            if st.button("✏️", key=f"edit_symptom_{i}", width='stretch'):
                                 st.session_state.editing_symptom_index = i
                                 st.rerun()
                         with btn_col2:
-                            if st.button("🗑️", key=f"delete_symptom_{i}", use_container_width=True):
+                            if st.button("🗑️", key=f"delete_symptom_{i}", width='stretch'):
                                 st.session_state.symptom_list.pop(i)
                                 st.session_state.editing_symptom_index = None
                                 st.rerun()
     else:
-        st.info("尚未新增症狀，請填寫下方表單後點擊「加入」")
+        st.info("尚未新增紀錄，請填寫下方表單後點擊「加入」")
 
     # ----- 新增一筆症狀 -----
     st.markdown("---")
-    st.markdown("**新增一筆症狀**")
+    st.markdown("**新增一筆**")
     with st.container(border=True):
-        new_symptom_name = st.text_input("症狀名稱", key="new_symptom_name", placeholder="例如：頭痛、噁心、心悸...")
+        new_symptom_name = st.text_input("哪裡不舒服", key="new_symptom_name", placeholder="例如：頭痛、噁心、心悸...")
         new_symptom_time = st.time_input(
             "發生時間",
             value=datetime.now().time(),
             key="new_symptom_time",
-            help="症狀大約是幾點發生的？"
+            help="大約是幾點開始不舒服的？"
         )
         new_symptom_duration = st.selectbox(
-            "這次症狀持續多久？",
+            "這次持續多久？",
             DURATION_OPTIONS,
             key="new_symptom_duration"
         )
-        if st.button("➕ 加入清單", use_container_width=True, type="secondary"):
+        if st.button("➕ 加入清單", width='stretch', type="secondary"):
             if new_symptom_name.strip():
                 symptom_time_str = f"{fill_date} {new_symptom_time.strftime('%H:%M')}"
                 st.session_state.symptom_list.append({
@@ -217,13 +217,13 @@ with tab1:
                 })
                 st.rerun()
             else:
-                st.warning("請輸入症狀名稱")
+                st.warning("請輸入哪裡不舒服")
 
     # ----- 送出全部 -----
     st.markdown("---")
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("✅ 儲存全部", use_container_width=True, type="primary", disabled=len(st.session_state.symptom_list) == 0):
+        if st.button("✅ 儲存全部", width='stretch', type="primary", disabled=len(st.session_state.symptom_list) == 0):
             if st.session_state.symptom_list:
                 if is_backfill:
                     save_filltime = f"{fill_date} 12:00"
@@ -248,14 +248,14 @@ with tab1:
                 st.success("儲存成功！")
                 st.switch_page("app.py")
     with col2:
-        if st.button("🗑️ 清空清單", use_container_width=True, disabled=len(st.session_state.symptom_list) == 0):
+        if st.button("🗑️ 清空清單", width='stretch', disabled=len(st.session_state.symptom_list) == 0):
             st.session_state.symptom_list = []
             st.rerun()
 
 
 # ==================== Tab 2: 歷史紀錄 ====================
 with tab2:
-    st.subheader("歷史症狀紀錄")
+    st.subheader("歷史紀錄")
 
     # ----- 日期篩選 -----
     col1, col2 = st.columns(2)
@@ -268,7 +268,7 @@ with tab2:
     records = get_user_records(user_id, "Symptom", start_date=start_date, end_date=end_date)
 
     if not records:
-        st.info("這段期間沒有症狀紀錄")
+        st.info("這段期間沒有紀錄")
     else:
         st.markdown(f"共 **{len(records)}** 筆紀錄")
 
@@ -292,9 +292,9 @@ with tab2:
                         with st.container(border=True):
                             col1, col2 = st.columns([5, 2])
                             with col1:
-                                st.markdown("✅ **今日無症狀**")
+                                st.markdown("✅ **今日沒有不舒服**")
                             with col2:
-                                if st.button("🗑️", key=f"del_ns_{filltime}", use_container_width=True, help="刪除此紀錄"):
+                                if st.button("🗑️", key=f"del_ns_{filltime}", width='stretch', help="刪除此紀錄"):
                                     delete_symptom_record(user_id, filltime)
                                     st.success("刪除成功！")
                                     st.rerun()
@@ -304,7 +304,7 @@ with tab2:
                         # 編輯模式
                         with st.container(border=True):
                             edit_name = st.text_input(
-                                "症狀名稱",
+                                "哪裡不舒服",
                                 value=r.get("symptomname", ""),
                                 key=f"edit_name_{filltime}"
                             )
@@ -326,7 +326,7 @@ with tab2:
                             )
                             col1, col2 = st.columns(2)
                             with col1:
-                                if st.button("💾 儲存", key=f"save_{filltime}", use_container_width=True):
+                                if st.button("💾 儲存", key=f"save_{filltime}", width='stretch'):
                                     date_part = r.get("symptomtime", fill_date).split(" ")[0]
                                     new_stime_str = f"{date_part} {edit_stime.strftime('%H:%M')}"
                                     update_symptom_record(user_id, filltime, edit_name, edit_duration, new_stime_str)
@@ -334,7 +334,7 @@ with tab2:
                                     st.success("更新成功！")
                                     st.rerun()
                             with col2:
-                                if st.button("取消", key=f"cancel_{filltime}", use_container_width=True):
+                                if st.button("取消", key=f"cancel_{filltime}", width='stretch'):
                                     st.session_state.edit_mode = None
                                     st.rerun()
                     else:
@@ -342,18 +342,18 @@ with tab2:
                         with st.container(border=True):
                             col1, col2 = st.columns([5, 2])
                             with col1:
-                                st.markdown(f"🤧 **{r.get('symptomname', '（未知症狀）')}**")
+                                st.markdown(f"🤧 **{r.get('symptomname', '（未填）')}**")
                                 stime_raw = r.get("symptomtime", "")
                                 stime_display = stime_raw.split(" ")[1] if " " in stime_raw else stime_raw
                                 st.caption(f"發生時間：{stime_display}　持續：{r.get('duration', '—')}")
                             with col2:
                                 btn_col1, btn_col2 = st.columns(2)
                                 with btn_col1:
-                                    if st.button("✏️", key=f"edit_{filltime}", use_container_width=True):
+                                    if st.button("✏️", key=f"edit_{filltime}", width='stretch'):
                                         st.session_state.edit_mode = filltime
                                         st.rerun()
                                 with btn_col2:
-                                    if st.button("🗑️", key=f"del_{filltime}", use_container_width=True):
+                                    if st.button("🗑️", key=f"del_{filltime}", width='stretch'):
                                         delete_symptom_record(user_id, filltime)
                                         st.success("刪除成功！")
                                         st.rerun()

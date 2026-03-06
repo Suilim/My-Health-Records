@@ -68,3 +68,11 @@ p, li, span, label {
         min-height: 52px !important;
     }
 }
+
+/* ---- 隱藏 Streamlit 預設 UI 元素 ---- */
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
+.stDeployButton {display: none;}
+[data-testid="stSidebar"] {display: none;}
+[data-testid="collapsedControl"] {display: none;}

@@ -137,7 +137,7 @@ with tab1:
                     fig = create_combined_chart(df, firebase_node, drug_records)
                     
                     if fig:
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
                         st.caption("💡 背景顏色代表當日用藥達成率：🟩 完全達成 / 🟨 部分達成 / 🟥 未服用")
 
             elif chart_type == "drug":
@@ -145,7 +145,7 @@ with tab1:
                 # 為了避免重複，如果已經在上方整合圖表中看過，這裡可以只顯示純熱力圖供詳細檢查
                 fig = create_drug_heatmap_chart(records, start_date, end_date)
                 if fig:
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
                 else:
                     st.info("此期間無用藥紀錄")
 
@@ -153,7 +153,7 @@ with tab1:
                 # ── 生活：情緒分布 ──
                 fig = create_emotion_bar_chart(records)
                 if fig:
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
                 else:
                     st.info("此期間無情緒紀錄")
             

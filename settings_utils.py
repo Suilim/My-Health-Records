@@ -9,7 +9,7 @@ MODULE_NAMES = {
     "temp": "體溫",
     "drug": "用藥",
     "life": "生活紀錄",
-    "symptom":"症狀"
+    "symptom":"不舒服的地方"
 }
 
 # 用藥時段選項

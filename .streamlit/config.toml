@@ -1,5 +1,5 @@
 [theme]
-# 這是你說的「Streamlit 紅」，可以改成你喜歡的顏色（例如深藍色）
+# 主色
 primaryColor = "#7A99C4"
 
 # 頁面的背景顏色

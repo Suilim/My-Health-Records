@@ -146,7 +146,12 @@ with tab2:
     with col2:
         end_date = st.date_input("結束日期", value=datetime.now().date(), key="wt_end")
 
-    # 取得紀錄
+    # 取得各節點紀錄，以 filltime 為 key 建立查找表
+    bf_lookup = {r["filltime"]: r for r in get_user_records(user_id, "BodyFat", start_date=start_date, end_date=end_date)}
+    mu_lookup = {r["filltime"]: r for r in get_user_records(user_id, "Muscle", start_date=start_date, end_date=end_date)}
+    bmi_lookup = {r["filltime"]: r for r in get_user_records(user_id, "BMI", start_date=start_date, end_date=end_date)}
+
+    # 以 Weight 為主紀錄
     records = get_user_records(user_id, "Weight", start_date=start_date, end_date=end_date)
 
     if not records:
@@ -154,25 +159,95 @@ with tab2:
     else:
         st.markdown(f"共 **{len(records)}** 筆紀錄")
 
-        # 顯示紀錄
         for r in reversed(records):
             filltime = r.get("filltime", "")
             wei = r.get("wei", "")
             wai = r.get("wai", "")
+            bf = bf_lookup.get(filltime, {}).get("bodyfat", "")
+            mu = mu_lookup.get(filltime, {}).get("muscle", "")
+            bmi = bmi_lookup.get(filltime, {}).get("bmi", "")
 
-            col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
-            with col1:
-                st.write(f"📅 {filltime}")
-            with col2:
-                st.write(f"⚖️ {wei} kg")
-            with col3:
-                if wai:
-                    st.write(f"📏 腰圍 {wai} cm")
-            with col4:
-                if st.button("🗑️", key=f"del_wt_{filltime}"):
-                    db.reference(f"Weight/{user_id}/{filltime}").delete()
-                    st.success("已刪除")
-                    st.rerun()
+            with st.expander(f"📅 {filltime}　⚖️ {wei} kg"):
+                editing_key = f"editing_wt_{filltime}"
+                if st.session_state.get(editing_key, False):
+                    # 編輯表單
+                    new_wei = st.number_input("體重 (kg)", min_value=20.0, max_value=200.0,
+                        value=float(wei) if wei else 50.0, step=0.1, format="%.1f", key=f"edit_wei_{filltime}")
+
+                    edit_wai = st.checkbox("📏 腰圍", value=bool(wai), key=f"ck_wai_{filltime}")
+                    if edit_wai:
+                        new_wai = st.number_input("腰圍 (cm)", min_value=30.0, max_value=200.0,
+                            value=float(wai) if wai else 70.0, step=0.5, format="%.1f", key=f"edit_wai_{filltime}")
+
+                    edit_bf = st.checkbox("🔥 體脂率", value=bool(bf), key=f"ck_bf_{filltime}")
+                    if edit_bf:
+                        new_bf = st.number_input("體脂率 (%)", min_value=1.0, max_value=60.0,
+                            value=float(bf) if bf else 20.0, step=0.1, format="%.1f", key=f"edit_bf_{filltime}")
+
+                    edit_mu = st.checkbox("💪 骨骼肌率", value=bool(mu), key=f"ck_mu_{filltime}")
+                    if edit_mu:
+                        new_mu = st.number_input("骨骼肌率 (%)", min_value=1.0, max_value=60.0,
+                            value=float(mu) if mu else 30.0, step=0.1, format="%.1f", key=f"edit_mu_{filltime}")
+
+                    edit_bmi = st.checkbox("📊 BMI", value=bool(bmi), key=f"ck_bmi_{filltime}")
+                    if edit_bmi:
+                        new_bmi = st.number_input("BMI", min_value=10.0, max_value=50.0,
+                            value=float(bmi) if bmi else 22.0, step=0.1, format="%.1f", key=f"edit_bmi_{filltime}")
+
+                    col_save, col_cancel = st.columns(2)
+                    with col_save:
+                        if st.button("💾 儲存", key=f"save_wt_{filltime}", type="primary", use_container_width=True):
+                            db.reference(f"Weight/{user_id}/{filltime}").update({
+                                "wei": str(new_wei),
+                                "wai": str(new_wai) if edit_wai else ""
+                            })
+                            if edit_bf:
+                                db.reference(f"BodyFat/{user_id}/{filltime}").set({"id": user_id, "bodyfat": str(new_bf), "filltime": filltime})
+                            elif bf:
+                                db.reference(f"BodyFat/{user_id}/{filltime}").delete()
+                            if edit_mu:
+                                db.reference(f"Muscle/{user_id}/{filltime}").set({"id": user_id, "muscle": str(new_mu), "filltime": filltime})
+                            elif mu:
+                                db.reference(f"Muscle/{user_id}/{filltime}").delete()
+                            if edit_bmi:
+                                db.reference(f"BMI/{user_id}/{filltime}").set({"id": user_id, "bmi": str(new_bmi), "filltime": filltime})
+                            elif bmi:
+                                db.reference(f"BMI/{user_id}/{filltime}").delete()
+                            st.session_state[editing_key] = False
+                            st.rerun()
+                    with col_cancel:
+                        if st.button("✖️ 取消", key=f"cancel_wt_{filltime}", use_container_width=True):
+                            st.session_state[editing_key] = False
+                            st.rerun()
+                else:
+                    # 顯示模式
+                    items = [f"⚖️ 體重 **{wei} kg**"]
+                    if wai:
+                        items.append(f"📏 腰圍 **{wai} cm**")
+                    if bf:
+                        items.append(f"🔥 體脂率 **{bf}%**")
+                    if mu:
+                        items.append(f"💪 骨骼肌率 **{mu}%**")
+                    if bmi:
+                        items.append(f"📊 BMI **{bmi}**")
+                    st.markdown("　".join(items))
+
+                    col_edit, col_del = st.columns(2)
+                    with col_edit:
+                        if st.button("✏️ 修改", key=f"edit_wt_{filltime}", use_container_width=True):
+                            st.session_state[editing_key] = True
+                            st.rerun()
+                    with col_del:
+                        if st.button("🗑️ 刪除", key=f"del_wt_{filltime}", use_container_width=True):
+                            db.reference(f"Weight/{user_id}/{filltime}").delete()
+                            if bf:
+                                db.reference(f"BodyFat/{user_id}/{filltime}").delete()
+                            if mu:
+                                db.reference(f"Muscle/{user_id}/{filltime}").delete()
+                            if bmi:
+                                db.reference(f"BMI/{user_id}/{filltime}").delete()
+                            st.success("已刪除")
+                            st.rerun()
 
 # ===== 返回首頁 =====
 st.markdown("---")

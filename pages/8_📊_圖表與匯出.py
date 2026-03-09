@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, date, timedelta
 from io import BytesIO
 from export_records import DATA_TYPES, get_user_records, export_all_to_excel
-from settings_utils import get_enabled_modules, MODULE_PATHS, MODULE_NAMES
+from settings_utils import get_enabled_modules, MODULE_PATHS, MODULE_NAMES, get_drug_slots
 from plot_utils import (
     CHART_COLUMNS,
     records_to_dataframe,
@@ -11,6 +11,8 @@ from plot_utils import (
     create_plotly_line_chart,
     create_drug_heatmap_chart,
     create_emotion_bar_chart,
+    create_symptom_bar_chart,
+    create_combined_chart,
 )
 
 st.set_page_config(
@@ -77,6 +79,7 @@ with tab1:
         "temp": "🌡️",
         "drug": "💊",
         "life": "🏃",
+        "symptom": "🤧",
     }
 
     # ── 所有模組圖表堆疊顯示 ──
@@ -101,61 +104,86 @@ with tab1:
             st.subheader(f"{emoji} {name}")
 
             if chart_type == "line":
-                # ── 數值型模組：整合式圖表 (上方折線 + 下方用藥) ──
-                df = records_to_dataframe(records, firebase_node)
-                
-                if df is not None and not df.empty:
-                    # 抓取同時期的用藥紀錄作為對照
-                    drug_node = MODULE_PATHS.get("drug")
-                    drug_records = []
-                    if drug_node:
-                        drug_records = get_user_records(user_id, drug_node, start_date, end_date)
+                # 體重模組：合併多個節點一起顯示
+                if firebase_node == "Weight":
+                    extra_records = {
+                        "BodyFat": get_user_records(user_id, "BodyFat", start_date, end_date),
+                        "Muscle": get_user_records(user_id, "Muscle", start_date, end_date),
+                        "BMI": get_user_records(user_id, "BMI", start_date, end_date),
+                    }
+                    all_dfs = {"Weight": records_to_dataframe(records, "Weight")}
+                    for node, recs in extra_records.items():
+                        if recs:
+                            all_dfs[node] = records_to_dataframe(recs, node)
 
-                    # 顯示 KPI 指標
-                    stats = get_summary_stats(df)
-                    if stats:
-                        cols = st.columns(len(stats) + 1)
-                        idx = 0
-                        for col_name, stat in stats.items():
-                            with cols[idx]:
-                                delta = None
-                                if stat['最新'] > 0:
-                                    diff = stat['最新'] - stat['平均']
-                                    delta = f"{diff:+.1f}"
-                                
-                                st.metric(
-                                    label=f"{col_name} (最新)",
-                                    value=str(stat['最新']),
-                                    delta=delta,
-                                    help=f"平均: {stat['平均']} / 最高: {stat['最高']} / 最低: {stat['最低']}"
-                                )
-                            idx += 1
-                            if idx >= 4: idx = 0
-                    
-                    # 繪製整合式圖表：數值 + 用藥背景 + 詳細用藥
-                    from plot_utils import create_combined_chart
-                    fig = create_combined_chart(df, firebase_node, drug_records)
-                    
-                    if fig:
-                        st.plotly_chart(fig, width='stretch')
-                        st.caption("💡 背景顏色代表當日用藥達成率：🟩 完全達成 / 🟨 部分達成 / 🟥 未服用")
+                    # 顯示各節點 KPI
+                    for node, df in all_dfs.items():
+                        if df is None or df.empty:
+                            continue
+                        stats = get_summary_stats(df)
+                        if stats:
+                            cols = st.columns(len(stats))
+                            for i, (col_name, stat) in enumerate(stats.items()):
+                                with cols[i]:
+                                    delta = None
+                                    if stat["上一筆"] is not None:
+                                        diff = stat["最新"] - stat["上一筆"]
+                                        delta = f"{diff:+.1f} (vs 上筆)"
+                                    st.metric(
+                                        label=f"{col_name} 最新",
+                                        value=str(stat["最新"]),
+                                        delta=delta,
+                                        help=f"最高: {stat['最高']} / 最低: {stat['最低']} / 平均: {stat['平均']}"
+                                    )
+                        fig = create_combined_chart(df, node, [], None)
+                        if fig:
+                            st.plotly_chart(fig, width='stretch')
+                else:
+                    df = records_to_dataframe(records, firebase_node)
+                    if df is not None and not df.empty:
+                        stats = get_summary_stats(df)
+                        if stats:
+                            cols = st.columns(len(stats))
+                            for i, (col_name, stat) in enumerate(stats.items()):
+                                with cols[i]:
+                                    delta = None
+                                    if stat["上一筆"] is not None:
+                                        diff = stat["最新"] - stat["上一筆"]
+                                        delta = f"{diff:+.1f} (vs 上筆)"
+                                    st.metric(
+                                        label=f"{col_name} 最新",
+                                        value=str(stat["最新"]),
+                                        delta=delta,
+                                        help=f"最高: {stat['最高']} / 最低: {stat['最低']} / 平均: {stat['平均']}"
+                                    )
+                        fig = create_combined_chart(df, firebase_node, [], None)
+                        if fig:
+                            st.plotly_chart(fig, width='stretch')
 
             elif chart_type == "drug":
-                # ── 用藥：熱力圖 ──
-                # 為了避免重複，如果已經在上方整合圖表中看過，這裡可以只顯示純熱力圖供詳細檢查
-                fig = create_drug_heatmap_chart(records, start_date, end_date)
+                user_drug_slots = get_drug_slots(user_id)
+                fig = create_drug_heatmap_chart(records, start_date, end_date, user_drug_slots or None)
                 if fig:
                     st.plotly_chart(fig, width='stretch')
                 else:
                     st.info("此期間無用藥紀錄")
 
             elif chart_type == "life":
-                # ── 生活：情緒分布 ──
                 fig = create_emotion_bar_chart(records)
                 if fig:
                     st.plotly_chart(fig, width='stretch')
                 else:
                     st.info("此期間無情緒紀錄")
+
+            elif chart_type == "symptom":
+                fig = create_symptom_bar_chart(records)
+                if fig:
+                    st.plotly_chart(fig, width='stretch')
+                    # 顯示本期總筆數（排除無症狀標記）
+                    real_count = sum(1 for r in records if r.get("symptomname", "") != "（無症狀）")
+                    st.caption(f"本期共記錄 {real_count} 筆不舒服紀錄")
+                else:
+                    st.info("此期間無不舒服紀錄（或全為無症狀標記）")
             
             st.markdown("---")
 

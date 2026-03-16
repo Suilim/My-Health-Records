@@ -52,8 +52,13 @@ DATA_TYPES = {
     },
     "Symptom": {
         "node": "Symptom",
-        "columns": ["id", "symptomname", "duration", "symptomtime", "filltime"],
+        "columns": ["id", "symptomname", "context", "duration", "symptomtime", "filltime"],
         "display_name": "不舒服的地方"
+    },
+    "Sleep": {
+        "node": "Sleep",
+        "columns": ["id", "sleeptime", "waketime", "duration", "quality", "tags", "filltime"],
+        "display_name": "睡眠"
     },
 }
 

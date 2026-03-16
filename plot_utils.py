@@ -61,6 +61,10 @@ CHART_COLUMNS = {
         "columns": {},
         "chart_type": "symptom",
     },
+    "Sleep": {
+        "columns": {},
+        "chart_type": "sleep",
+    },
 }
 
 
@@ -393,6 +397,80 @@ def create_symptom_bar_chart(records):
         height=300
     )
     return fig
+
+
+def create_sleep_charts(records):
+    """
+    睡眠紀錄：回傳 (時數折線圖, 品質折線圖) tuple
+    品質分數 1-5 對應 😫😕😐😊😄
+    """
+    if not records:
+        return None, None
+
+    QUALITY_LABELS = {1: "😫", 2: "😕", 3: "😐", 4: "😊", 5: "😄"}
+
+    rows = []
+    for r in records:
+        dt = _parse_filltime(r.get("filltime", ""))
+        if dt is None:
+            continue
+        try:
+            dur = float(r.get("duration", 0))
+            quality = int(r.get("quality", 0))
+        except (ValueError, TypeError):
+            continue
+        rows.append({"時間": dt.strftime("%Y-%m-%d"), "時數": dur, "品質": quality})
+
+    if not rows:
+        return None, None
+
+    df = pd.DataFrame(rows).sort_values("時間")
+
+    # 睡眠時數折線圖
+    fig_dur = go.Figure()
+    fig_dur.add_trace(go.Scatter(
+        x=df["時間"], y=df["時數"],
+        mode='lines+markers',
+        name="睡眠時數",
+        line=dict(width=3, color="#5B8DEF"),
+        marker=dict(size=7),
+        hovertemplate="<b>%{x}</b><br>睡眠時數: %{y} 小時<extra></extra>"
+    ))
+    # 建議範圍參考線 7-9 小時
+    fig_dur.add_hrect(y0=7, y1=9, fillcolor="#d4edda", opacity=0.3, line_width=0, annotation_text="建議範圍 7-9h", annotation_position="top right")
+    fig_dur.update_layout(
+        title="睡眠時數",
+        yaxis_title="小時",
+        height=300,
+        margin=dict(l=20, r=20, t=40, b=20),
+        template="plotly_white"
+    )
+
+    # 睡眠品質折線圖
+    fig_q = go.Figure()
+    fig_q.add_trace(go.Scatter(
+        x=df["時間"], y=df["品質"],
+        mode='lines+markers',
+        name="睡眠品質",
+        line=dict(width=3, color="#F4A261"),
+        marker=dict(size=7),
+        hovertemplate="<b>%{x}</b><br>品質: %{y}<extra></extra>"
+    ))
+    fig_q.update_layout(
+        title="睡眠品質",
+        yaxis=dict(
+            title="品質",
+            tickmode="array",
+            tickvals=[1, 2, 3, 4, 5],
+            ticktext=["😫", "😕", "😐", "😊", "😄"],
+            range=[0.5, 5.5]
+        ),
+        height=300,
+        margin=dict(l=20, r=20, t=40, b=20),
+        template="plotly_white"
+    )
+
+    return fig_dur, fig_q
 
 
 def _parse_filltime(filltime_str):

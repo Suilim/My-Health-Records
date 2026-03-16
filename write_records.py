@@ -313,7 +313,7 @@ def add_life_record(user_id, life_record, emotion, filltime=None):
     print(f"生活紀錄寫入完成: {user_id} - {emotion}")
 
 # ========== 症狀 ==========
-def add_symptom_record(user_id, symptom_name, duration, symptom_time, filltime=None):
+def add_symptom_record(user_id, symptom_name, duration, symptom_time, context=None, filltime=None):
     """
     新增症狀紀錄
     路徑: Symptom/{userId}/{filltime}
@@ -322,6 +322,7 @@ def add_symptom_record(user_id, symptom_name, duration, symptom_time, filltime=N
         symptom_name: 症狀
         duration: 持續時間
         symptom_time: 發作時間
+        context: 發生情境（可選，例如 "上班, 太吵"）
     """
     if filltime is None:
         filltime = _get_current_filltime()
@@ -332,12 +333,13 @@ def add_symptom_record(user_id, symptom_name, duration, symptom_time, filltime=N
         "symptomname": str(symptom_name),
         "duration": str(duration),
         "symptomtime": str(symptom_time),
+        "context": str(context) if context else "",
         "filltime": str(filltime)
     })
     print(f"症狀紀錄寫入完成: {user_id} - {symptom_name} {duration}")
 
 
-def update_symptom_record(user_id, filltime, symptom_name, duration, symptom_time):
+def update_symptom_record(user_id, filltime, symptom_name, duration, symptom_time, context=None):
     """
     更新症狀紀錄
     路徑: Symptom/{userId}/{filltime}
@@ -346,7 +348,8 @@ def update_symptom_record(user_id, filltime, symptom_name, duration, symptom_tim
     ref.update({
         "symptomname": str(symptom_name),
         "duration": str(duration),
-        "symptomtime": str(symptom_time)
+        "symptomtime": str(symptom_time),
+        "context": str(context) if context else ""
     })
     print(f"症狀紀錄更新完成: {user_id} - {symptom_name}")
 
@@ -361,6 +364,45 @@ def delete_symptom_record(user_id, filltime):
     print(f"症狀紀錄刪除完成: {user_id} - {filltime}")
 
 
+# ========== 睡眠 ==========
+def add_sleep_record(user_id, sleep_time, wake_time, duration, quality, tags, filltime=None):
+    """
+    新增睡眠紀錄
+    路徑: Sleep/{userId}/{filltime}
+
+    參數:
+        sleep_time: 睡覺時間（字串，例如 "23:30"）
+        wake_time: 起床時間（字串，例如 "07:00"）
+        duration: 睡眠時數（float，例如 7.5）
+        quality: 睡眠品質（int 1-5，對應 😫😕😐😊😄）
+        tags: 快速標籤（字串，逗號分隔，例如 "一直做夢, 半夜醒來"）
+    """
+    if filltime is None:
+        filltime = _get_current_filltime()
+
+    ref = db.reference(f'Sleep/{user_id}/{filltime}')
+    ref.set({
+        "id": str(user_id),
+        "sleeptime": str(sleep_time),
+        "waketime": str(wake_time),
+        "duration": str(duration),
+        "quality": str(quality),
+        "tags": str(tags) if tags else "",
+        "filltime": str(filltime)
+    })
+    print(f"睡眠紀錄寫入完成: {user_id} - {sleep_time}~{wake_time} ({duration}h)")
+
+
+def delete_sleep_record(user_id, filltime):
+    """
+    刪除睡眠紀錄
+    路徑: Sleep/{userId}/{filltime}
+    """
+    ref = db.reference(f'Sleep/{user_id}/{filltime}')
+    ref.delete()
+    print(f"睡眠紀錄刪除完成: {user_id} - {filltime}")
+
+
 def add_symptom_records_batch(user_id, symptoms, filltime=None):
     """
     批次新增多筆用藥紀錄（同一時間點）
@@ -372,13 +414,13 @@ def add_symptom_records_batch(user_id, symptoms, filltime=None):
             - name: 症狀名稱
             - duration: 持續時間（很快就過了/一段時間/很久）
             - symptomtime: 確切時間點
+            - context: 發生情境（可選）
         filltime: 填寫時間（可選，預設當前時間）
 
     範例:
         add_symptom_records_batch("A001", [
-            {"name": "頭痛", "duration": "一段時間", "symptomtime": "2024-01-20 14:30"},
+            {"name": "頭痛", "duration": "一段時間", "symptomtime": "2024-01-20 14:30", "context": "上班"},
             {"name": "皮膚乾癢", "duration": "很久", "symptomtime": "2024-01-20 21:00"},
-            {"name": "眼睛乾澀", "duration": "很久", "symptomtime": "2024-01-20 15:00"},
         ])
     """
     if filltime is None:
@@ -394,6 +436,7 @@ def add_symptom_records_batch(user_id, symptoms, filltime=None):
             "symptomname": str(symptom["name"]),
             "duration": str(symptom["duration"]),
             "symptomtime": str(symptom["symptomtime"]),
+            "context": str(symptom["context"]) if symptom.get("context") else "",
             "filltime": str(unique_filltime)
         })
         print(f"症狀紀錄寫入完成: {user_id} - {symptom['name']} / {symptom['duration']}")

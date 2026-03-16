@@ -13,6 +13,7 @@ from plot_utils import (
     create_emotion_bar_chart,
     create_symptom_bar_chart,
     create_combined_chart,
+    create_sleep_charts,
 )
 
 st.set_page_config(
@@ -80,6 +81,7 @@ with tab1:
         "drug": "💊",
         "life": "🏃",
         "symptom": "🤧",
+        "sleep": "😴",
     }
 
     # ── 所有模組圖表堆疊顯示 ──
@@ -184,6 +186,15 @@ with tab1:
                     st.caption(f"本期共記錄 {real_count} 筆不舒服紀錄")
                 else:
                     st.info("此期間無不舒服紀錄（或全為無症狀標記）")
+
+            elif chart_type == "sleep":
+                fig_dur, fig_q = create_sleep_charts(records)
+                if fig_dur:
+                    st.plotly_chart(fig_dur, width='stretch')
+                if fig_q:
+                    st.plotly_chart(fig_q, width='stretch')
+                if not fig_dur and not fig_q:
+                    st.info("此期間無睡眠紀錄")
             
             st.markdown("---")
 

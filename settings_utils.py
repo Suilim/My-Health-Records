@@ -9,7 +9,8 @@ MODULE_NAMES = {
     "temp": "體溫",
     "drug": "用藥",
     "life": "生活紀錄",
-    "symptom":"不舒服的地方"
+    "symptom": "不舒服的地方",
+    "sleep": "睡眠"
 }
 
 # 用藥時段選項
@@ -23,7 +24,8 @@ MODULE_PATHS = {
     "temp": "Temp",
     "drug": "Drug",
     "life": "Life",
-    "symptom":"Symptom"
+    "symptom": "Symptom",
+    "sleep": "Sleep"
 }
 
 

@@ -29,6 +29,10 @@ DURATION_OPTIONS = ["10分鐘以內", "1小時", "半天", "一天", "不確定"
 # 發生時段選項
 TIME_SLOT_OPTIONS = ["早", "中", "晚"]
 
+# 情境快速標籤
+CONTEXT_OPTIONS = ["上班", "運動", "搭車", "吃飯", "肚子餓", "廁所", "月經", "人多", "環境太吵", "被唸/被罵", "吵架"]
+CONTEXT_ROW_SIZE = 3  # 每排幾個
+
 # 初始化 session state
 if "symptom_list" not in st.session_state:
     st.session_state.symptom_list = []
@@ -144,6 +148,17 @@ with tab1:
                         value=symptom["name"],
                         key=f"edit_symptom_name_{i}"
                     )
+                    # 情境標籤編輯
+                    st.markdown("**發生情境（可複選）**")
+                    existing_contexts = [c.strip() for c in symptom.get("context", "").split(",") if c.strip()]
+                    edit_contexts = []
+                    for row_start in range(0, len(CONTEXT_OPTIONS), CONTEXT_ROW_SIZE):
+                        row_opts = CONTEXT_OPTIONS[row_start:row_start + CONTEXT_ROW_SIZE]
+                        cols = st.columns(CONTEXT_ROW_SIZE)
+                        for j, opt in enumerate(row_opts):
+                            with cols[j]:
+                                if st.checkbox(opt, value=(opt in existing_contexts), key=f"edit_ctx_{i}_{opt}"):
+                                    edit_contexts.append(opt)
                     existing_slot = symptom["symptomtime"] if symptom["symptomtime"] in TIME_SLOT_OPTIONS else "早"
                     edit_time_slot = st.radio(
                         "發生時段",
@@ -165,6 +180,7 @@ with tab1:
                             st.session_state.symptom_list[i]["name"] = edit_name
                             st.session_state.symptom_list[i]["symptomtime"] = edit_time_slot
                             st.session_state.symptom_list[i]["duration"] = edit_duration
+                            st.session_state.symptom_list[i]["context"] = ", ".join(edit_contexts)
                             st.session_state.editing_symptom_index = None
                             st.rerun()
                     with col2:
@@ -176,8 +192,10 @@ with tab1:
                 with st.container(border=True):
                     col1, col2 = st.columns([5, 2])
                     with col1:
-                        st.markdown(f"🤧 **{symptom['name']}**")
-                        st.caption(f"發生時段：{symptom['symptomtime']}　持續：{symptom['duration']}")
+                        st.markdown(f"🤧 **{symptom['name']}**" if symptom['name'] else "🤧 **（未填）**")
+                        ctx = symptom.get("context", "")
+                        ctx_str = f"　情境：{ctx}" if ctx else ""
+                        st.caption(f"發生時段：{symptom['symptomtime']}　持續：{symptom['duration']}{ctx_str}")
                     with col2:
                         btn_col1, btn_col2 = st.columns(2)
                         with btn_col1:
@@ -197,6 +215,18 @@ with tab1:
     st.markdown("**新增一筆**")
     with st.container(border=True):
         new_symptom_name = st.text_input("哪裡不舒服", key="new_symptom_name", placeholder="例如：頭痛、噁心、心悸...")
+
+        # 情境快速標籤
+        st.markdown("**發生情境（可複選）**")
+        selected_contexts = []
+        for row_start in range(0, len(CONTEXT_OPTIONS), CONTEXT_ROW_SIZE):
+            row_opts = CONTEXT_OPTIONS[row_start:row_start + CONTEXT_ROW_SIZE]
+            cols = st.columns(CONTEXT_ROW_SIZE)
+            for j, opt in enumerate(row_opts):
+                with cols[j]:
+                    if st.checkbox(opt, key=f"ctx_{opt}"):
+                        selected_contexts.append(opt)
+
         new_symptom_time_slot = st.radio(
             "發生時段",
             TIME_SLOT_OPTIONS,
@@ -210,15 +240,16 @@ with tab1:
             key="new_symptom_duration"
         )
         if st.button("➕ 加入清單", width='stretch', type="secondary"):
-            if new_symptom_name.strip():
+            if new_symptom_name.strip() or selected_contexts:
                 st.session_state.symptom_list.append({
                     "name": new_symptom_name.strip(),
                     "duration": new_symptom_duration,
-                    "symptomtime": new_symptom_time_slot
+                    "symptomtime": new_symptom_time_slot,
+                    "context": ", ".join(selected_contexts)
                 })
                 st.rerun()
             else:
-                st.warning("請輸入哪裡不舒服")
+                st.warning("請輸入哪裡不舒服或選擇發生情境")
 
     # ----- 送出全部 -----
     st.markdown("---")
@@ -237,7 +268,8 @@ with tab1:
                     symptoms_to_save.append({
                         "name": s["name"],
                         "duration": s["duration"],
-                        "symptomtime": s["symptomtime"]
+                        "symptomtime": s["symptomtime"],
+                        "context": s.get("context", "")
                     })
 
                 add_symptom_records_batch(user_id, symptoms_to_save, filltime=save_filltime)
@@ -309,6 +341,17 @@ with tab2:
                                 value=r.get("symptomname", ""),
                                 key=f"edit_name_{filltime}"
                             )
+                            # 情境標籤編輯
+                            st.markdown("**發生情境（可複選）**")
+                            existing_contexts = [c.strip() for c in r.get("context", "").split(",") if c.strip()]
+                            edit_contexts = []
+                            for row_start in range(0, len(CONTEXT_OPTIONS), CONTEXT_ROW_SIZE):
+                                row_opts = CONTEXT_OPTIONS[row_start:row_start + CONTEXT_ROW_SIZE]
+                                cols = st.columns(CONTEXT_ROW_SIZE)
+                                for j, opt in enumerate(row_opts):
+                                    with cols[j]:
+                                        if st.checkbox(opt, value=(opt in existing_contexts), key=f"hist_ctx_{filltime}_{opt}"):
+                                            edit_contexts.append(opt)
                             current_slot = r.get("symptomtime", "早")
                             if current_slot not in TIME_SLOT_OPTIONS:
                                 current_slot = "早"
@@ -330,7 +373,7 @@ with tab2:
                             col1, col2 = st.columns(2)
                             with col1:
                                 if st.button("💾 儲存", key=f"save_{filltime}", width='stretch'):
-                                    update_symptom_record(user_id, filltime, edit_name, edit_duration, edit_stime)
+                                    update_symptom_record(user_id, filltime, edit_name, edit_duration, edit_stime, context=", ".join(edit_contexts))
                                     st.session_state.edit_mode = None
                                     st.success("更新成功！")
                                     st.rerun()
@@ -344,7 +387,9 @@ with tab2:
                             col1, col2 = st.columns([5, 2])
                             with col1:
                                 st.markdown(f"🤧 **{r.get('symptomname', '（未填）')}**")
-                                st.caption(f"發生時段：{r.get('symptomtime', '—')}　持續：{r.get('duration', '—')}")
+                                ctx = r.get("context", "")
+                                ctx_str = f"　情境：{ctx}" if ctx else ""
+                                st.caption(f"發生時段：{r.get('symptomtime', '—')}　持續：{r.get('duration', '—')}{ctx_str}")
                             with col2:
                                 btn_col1, btn_col2 = st.columns(2)
                                 with btn_col1:

@@ -191,6 +191,7 @@ def main_menu():
         "drug": "pages/1_💊_用藥.py",
         "life": "pages/6_🏃_生活.py",
         "symptom": "pages/7_🤧_不舒服的地方.py",
+        "sleep": "pages/8_😴_睡眠.py",
     }
 
     # 模組對應的 emoji
@@ -202,6 +203,7 @@ def main_menu():
         "drug": "💊",
         "life": "🏃",
         "symptom": "🤧",
+        "sleep": "😴",
     }
 
     # ===== 待補填通知 (最上方) =====
@@ -331,7 +333,7 @@ def main_menu():
     with col1:
         st.page_link("pages/0_⚙️_設定.py", label="⚙️ 設定", width='stretch')
     with col2:
-        st.page_link("pages/8_📊_圖表與匯出.py", label="📊 圖表與匯出", width='stretch')
+        st.page_link("pages/9_📊_圖表與匯出.py", label="📊 圖表與匯出", width='stretch')
 
     # ==== 登出 ====
     st.write("")

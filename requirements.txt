@@ -6,3 +6,4 @@ openpyxl
 watchdog
 streamlit_calendar
 Pillowstreamlit-navigation-bar
+streamlit_option_menu

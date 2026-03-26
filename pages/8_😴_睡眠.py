@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import datetime, timedelta, time
 from write_records import add_sleep_record, delete_sleep_record
+from nav_utils import bottom_nav
 from export_records import get_user_records
 
 st.set_page_config(page_title="睡眠紀錄", page_icon="😴", layout="wide")
@@ -157,6 +158,4 @@ with tab2:
                         st.success("刪除成功！")
                         st.rerun()
 
-# ===== 返回首頁 =====
-st.markdown("---")
-st.page_link("app.py", label="🏠 返回首頁")
+bottom_nav("app")

@@ -2,6 +2,7 @@ import streamlit as st
 from firebase_utils import db
 from datetime import datetime, timedelta
 from write_records import add_symptom_records_batch, update_symptom_record, delete_symptom_record
+from nav_utils import bottom_nav
 from export_records import get_user_records
 
 st.set_page_config(page_title="不舒服的地方", page_icon="🤧", layout="wide")
@@ -402,6 +403,4 @@ with tab2:
                                         st.success("刪除成功！")
                                         st.rerun()
 
-# ===== 返回首頁 =====
-st.markdown("---")
-st.page_link("app.py", label="🏠 返回首頁")
+bottom_nav("app")

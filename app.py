@@ -2,6 +2,7 @@ import streamlit as st
 from datetime import datetime
 from firebase_utils import db
 from write_records import create_user
+from nav_utils import bottom_nav
 from settings_utils import (
     MODULE_NAMES,
     get_user_settings,
@@ -288,11 +289,7 @@ def main_menu():
     # ===== 今日填寫狀態 =====
     today = datetime.now()
     today_label = f"{today.month}月{today.day}日（{_WEEKDAYS[today.weekday()]}）"
-    st.header(f"📅 {st.session_state.user_name} 今日紀錄")
-    st.markdown(
-        f'<p class="soft-hint">{today_label}</p>',
-        unsafe_allow_html=True
-    )
+    st.header(f"📅 {st.session_state.user_name} 今日紀錄 · {today_label}")
 
     today_status = check_today_records(user_id)
 
@@ -336,22 +333,16 @@ def main_menu():
                             width='stretch'
                         )
 
-    # ===== 底部按鈕 =====
-    st.markdown("---")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.page_link("pages/0_⚙️_設定.py", label="⚙️ 設定", width='stretch')
-    with col2:
-        st.page_link("pages/9_📊_圖表與匯出.py", label="📊 圖表與匯出", width='stretch')
-
     # ==== 登出 ====
-    st.write("")
+    st.markdown("---")
     if st.button("🚪 登出", width='stretch'):
         st.session_state.logged_in = False
         st.session_state.user_id = None
         st.session_state.user_name = None
         st.session_state.user_nickname = None
         st.rerun()
+
+    bottom_nav("app")
 
 # 主程式邏輯
 if st.session_state.logged_in:

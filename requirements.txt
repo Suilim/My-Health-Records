@@ -5,4 +5,4 @@ firebase-admin
 openpyxl
 watchdog
 streamlit_calendar
-Pillow
+Pillowstreamlit-navigation-bar

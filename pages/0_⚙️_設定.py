@@ -1,6 +1,7 @@
 import streamlit as st
 from firebase_utils import db
 from write_records import update_user_name, update_user_nickname, delete_user_all_data
+from nav_utils import bottom_nav
 from settings_utils import (
     MODULE_NAMES,
     DRUG_SLOT_OPTIONS,
@@ -150,6 +151,4 @@ st.info("功能開發中...")
 
 
 
-# 返回首頁
-st.markdown("---")
-st.page_link("app.py", label="🏠 返回首頁")
+bottom_nav("0_⚙️_設定")

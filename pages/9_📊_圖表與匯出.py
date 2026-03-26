@@ -4,6 +4,8 @@ from datetime import datetime, date, timedelta
 from io import BytesIO
 from export_records import DATA_TYPES, get_user_records, export_all_to_excel
 from settings_utils import get_enabled_modules, MODULE_PATHS, MODULE_NAMES, get_drug_slots
+from ai_report import prepare_data_for_ai, generate_report_with_gemini, export_report_to_docx
+from nav_utils import bottom_nav
 from plot_utils import (
     CHART_COLUMNS,
     records_to_dataframe,
@@ -33,7 +35,7 @@ user_name = st.session_state.user_name
 st.title("📊 健康儀表板")
 
 # ── 建立分頁 ──
-tab1, tab2 = st.tabs(["📈 趨勢儀表板", "📥 資料匯出"])
+tab1, tab2, tab3= st.tabs(["📈 趨勢儀表板", "📥 資料匯出", "🤖 AI健康摘要"])
 
 # ==========================================
 # Tab 1: 儀表板
@@ -255,3 +257,94 @@ with tab2:
                     file_name=filename,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
+
+# ==========================================
+# Tab 3: AI摘要
+# ==========================================
+MODULE_EMOJI = {
+    "heartrate": "❤️", "weight": "⚖️", "sugar": "🩸", "temp": "🌡️",
+    "drug": "💊", "life": "🏃", "symptom": "🤧", "sleep": "😴",
+}
+
+with tab3:
+    st.header("🤖 AI 健康摘要")
+    st.info("根據您的健康紀錄，由 AI 產生供醫師參考的完整報告")
+
+    # ── 時間範圍 ──
+    st.subheader("📅 選擇紀錄期間")
+    today_ai = date.today()
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date = st.date_input("開始日期", value=today_ai - timedelta(days=90), key="ai_start")
+    with col2:
+        end_date = st.date_input("結束日期", value=today_ai, key="ai_end")
+
+    if start_date > end_date:
+        st.error("開始日期不能晚於結束日期")
+    else:
+        # ── 選擇模組 ──
+        st.subheader("📋 選擇要納入的項目")
+        enabled_modules_ai = get_enabled_modules(user_id)
+
+        if not enabled_modules_ai:
+            st.info("尚未啟用任何模組，請至設定頁面開啟。")
+        else:
+            cols_ai = st.columns(2)
+            selected_modules = []
+            for i, mod in enumerate(enabled_modules_ai):
+                name = MODULE_NAMES.get(mod, mod)
+                emoji = MODULE_EMOJI.get(mod, "📝")
+                with cols_ai[i % 2]:
+                    if st.checkbox(f"{emoji} {name}", value=True, key=f"ai_mod_{mod}"):
+                        selected_modules.append(mod)
+
+            st.markdown("---")
+
+            # ── 產生報告 ──
+            if st.button("🤖 產生 AI 報告", type="primary", use_container_width=True):
+                if not selected_modules:
+                    st.warning("請至少選擇一個項目")
+                else:
+                    for key in ["ai_report_text", "ai_report_start", "ai_report_end", "ai_data_context"]:
+                        st.session_state.pop(key, None)
+
+                    with st.spinner("正在整理資料並產生報告，請稍候..."):
+                        try:
+                            data_context = prepare_data_for_ai(user_id, start_date, end_date, selected_modules)
+                            report_text = generate_report_with_gemini(user_name, data_context, start_date, end_date)
+                            st.session_state["ai_report_text"] = report_text
+                            st.session_state["ai_report_start"] = start_date
+                            st.session_state["ai_report_end"] = end_date
+                            st.session_state["ai_data_context"] = data_context
+                        except ValueError as e:
+                            st.error(str(e))
+                        except Exception as e:
+                            st.error(f"產生報告時發生錯誤：{e}")
+
+            # ── 顯示報告 ──
+            if "ai_data_context" in st.session_state:
+                with st.expander("🔍 查看餵給 AI 的原始資料（除錯用）"):
+                    st.text(st.session_state["ai_data_context"])
+
+            if "ai_report_text" in st.session_state:
+                report_text = st.session_state["ai_report_text"]
+                report_start = st.session_state["ai_report_start"]
+                report_end = st.session_state["ai_report_end"]
+
+                st.markdown("---")
+                st.subheader("📄 報告預覽")
+                st.markdown(report_text)
+                st.markdown("---")
+
+                docx_buffer = export_report_to_docx(report_text, user_name, report_start, report_end)
+                filename = f"{user_name}_健康報告_{report_start.strftime('%Y%m%d')}_{report_end.strftime('%Y%m%d')}.docx"
+                st.download_button(
+                    label="⬇️ 下載 Word 報告",
+                    data=docx_buffer,
+                    file_name=filename,
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True,
+                )
+    
+
+bottom_nav("9_📊_圖表與匯出")

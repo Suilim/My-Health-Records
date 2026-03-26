@@ -1,7 +1,7 @@
 import streamlit as st
 from firebase_utils import db
 from write_records import update_user_name, update_user_nickname, delete_user_all_data
-from nav_utils import bottom_nav
+from nav_utils import bottom_nav, apply_global_css
 from settings_utils import (
     MODULE_NAMES,
     DRUG_SLOT_OPTIONS,
@@ -13,8 +13,8 @@ from settings_utils import (
     save_drug_slots
 )
 
-st.set_page_config(page_title="設定", page_icon="⚙️")
-
+st.set_page_config(page_title="設定", page_icon="⚙️", initial_sidebar_state="collapsed")
+apply_global_css()
 # 檢查登入狀態
 if "logged_in" not in st.session_state or not st.session_state.logged_in:
     st.warning("請先登入！")

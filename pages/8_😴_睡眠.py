@@ -1,11 +1,11 @@
 import streamlit as st
 from datetime import datetime, timedelta, time
 from write_records import add_sleep_record, delete_sleep_record
-from nav_utils import bottom_nav
+from nav_utils import bottom_nav, apply_global_css
 from export_records import get_user_records
 
-st.set_page_config(page_title="睡眠紀錄", page_icon="😴", layout="wide")
-
+st.set_page_config(page_title="睡眠紀錄", page_icon="😴", layout="wide", initial_sidebar_state="collapsed")
+apply_global_css()
 # 檢查登入狀態
 if "logged_in" not in st.session_state or not st.session_state.logged_in:
     st.warning("請先登入！")
@@ -158,4 +158,4 @@ with tab2:
                         st.success("刪除成功！")
                         st.rerun()
 
-bottom_nav("app")
+bottom_nav("8_😴_睡眠")

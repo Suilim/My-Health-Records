@@ -5,7 +5,7 @@ from io import BytesIO
 from export_records import DATA_TYPES, get_user_records, export_all_to_excel
 from settings_utils import get_enabled_modules, MODULE_PATHS, MODULE_NAMES, get_drug_slots
 from ai_report import prepare_data_for_ai, generate_report_with_gemini, export_report_to_docx
-from nav_utils import bottom_nav
+from nav_utils import bottom_nav, apply_global_css
 from plot_utils import (
     CHART_COLUMNS,
     records_to_dataframe,
@@ -21,8 +21,10 @@ from plot_utils import (
 st.set_page_config(
     page_title="圖表與匯出",
     page_icon="📊",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
+apply_global_css()
 
 # 檢查登入狀態
 if "logged_in" not in st.session_state or not st.session_state.logged_in:

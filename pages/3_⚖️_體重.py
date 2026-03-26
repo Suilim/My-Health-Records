@@ -2,11 +2,11 @@ import streamlit as st
 from firebase_utils import db
 from datetime import datetime, timedelta
 from write_records import add_weight_record, add_bodyfat_record, add_muscle_record, add_bmi_record
-from nav_utils import bottom_nav
+from nav_utils import bottom_nav, apply_global_css
 from export_records import get_user_records
 
-st.set_page_config(page_title="體重紀錄", page_icon="⚖️", layout="wide")
-
+st.set_page_config(page_title="體重紀錄", page_icon="⚖️", layout="wide", initial_sidebar_state="collapsed")
+apply_global_css()
 # 檢查登入狀態
 if "logged_in" not in st.session_state or not st.session_state.logged_in:
     st.warning("請先登入！")
@@ -250,4 +250,4 @@ with tab2:
                             st.success("已刪除")
                             st.rerun()
 
-bottom_nav("app")
+bottom_nav("3_⚖️_體重")

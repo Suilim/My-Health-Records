@@ -2,7 +2,7 @@ import streamlit as st
 from datetime import datetime
 from firebase_utils import db
 from write_records import create_user
-from nav_utils import bottom_nav
+from nav_utils import bottom_nav, apply_global_css
 from settings_utils import (
     MODULE_NAMES,
     get_user_settings,
@@ -21,13 +21,7 @@ st.set_page_config(
     page_icon=_page_icon,
     layout="centered"
 )
-
-# 載入全域樣式
-def load_css(file_path: str):
-    with open(file_path) as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-
-load_css("style.css")
+apply_global_css()
 
 # 日期格式化工具
 _WEEKDAYS = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]

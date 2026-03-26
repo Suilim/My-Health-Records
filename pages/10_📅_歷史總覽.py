@@ -19,7 +19,8 @@ from calendar_utils import (
 st.set_page_config(
     page_title="歷史總覽",
     page_icon="📅",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 # 檢查登入狀態

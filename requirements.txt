@@ -8,4 +8,4 @@ streamlit_calendar
 Pillow
 streamlit-navigation-bar
 streamlit_option_menu
-google
+google-genai

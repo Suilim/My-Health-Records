@@ -48,12 +48,12 @@ if not enabled_modules:
     st.info("尚未啟用任何模組，請至設定頁面開啟。")
     st.stop()
 
-cols = st.columns(4)
+cols = st.columns(2)
 selected_modules = []
 for i, mod in enumerate(enabled_modules):
     name = MODULE_NAMES.get(mod, mod)
     emoji = MODULE_EMOJI.get(mod, "📝")
-    with cols[i % 4]:
+    with cols[i % 2]:
         if st.checkbox(f"{emoji} {name}", value=True, key=f"mod_{mod}"):
             selected_modules.append(mod)
 
@@ -64,17 +64,19 @@ if st.button("🤖 產生 AI 報告", type="primary", use_container_width=True):
     if not selected_modules:
         st.warning("請至少選擇一個項目")
     else:
+        # 清除舊報告
+        for key in ["ai_report_text", "ai_report_start", "ai_report_end", "ai_data_context"]:
+            st.session_state.pop(key, None)
+
         with st.spinner("正在整理資料並產生報告，請稍候..."):
             try:
-                # 準備資料
                 data_context = prepare_data_for_ai(user_id, start_date, end_date, selected_modules)
-
-                # 呼叫 Gemini
                 report_text = generate_report_with_gemini(user_name, data_context, start_date, end_date)
 
                 st.session_state["ai_report_text"] = report_text
                 st.session_state["ai_report_start"] = start_date
                 st.session_state["ai_report_end"] = end_date
+                st.session_state["ai_data_context"] = data_context
 
             except ValueError as e:
                 st.error(str(e))
@@ -82,6 +84,10 @@ if st.button("🤖 產生 AI 報告", type="primary", use_container_width=True):
                 st.error(f"產生報告時發生錯誤：{e}")
 
 # ── 顯示報告 ──
+if "ai_data_context" in st.session_state:
+    with st.expander("🔍 查看餵給 AI 的原始資料（除錯用）"):
+        st.text(st.session_state["ai_data_context"])
+
 if "ai_report_text" in st.session_state:
     report_text = st.session_state["ai_report_text"]
     report_start = st.session_state["ai_report_start"]

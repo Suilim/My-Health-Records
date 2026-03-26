@@ -4,276 +4,315 @@ from io import BytesIO
 
 import streamlit as st
 from google import genai
-from google.genai import types
 from docx import Document
-from docx.shared import Pt, RGBColor
+from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 from export_records import get_user_records
+from settings_utils import get_drug_slots, get_recorded_slots_by_date
 
+
+# ── 工具函式 ──────────────────────────────────────────────
 
 def _week_label(d: date) -> str:
-    """回傳該日期所在週的標籤，例如 '2026/01 第2週'"""
-    first_day = date(d.year, d.month, 1)
     week_num = (d.day - 1) // 7 + 1
-    return f"{d.year}/{d.month:02d} 第{week_num}週"
+    return f"{d.month}月第{week_num}週"
 
 
-def _prepare_heartrate(records: list) -> str:
-    """血壓心率：每週平均，標註異常"""
-    if not records:
-        return ""
+def _week_range_label(week_start: date, week_end: date) -> str:
+    return f"{week_start.month}/{week_start.day}～{week_end.month}/{week_end.day}"
 
-    weekly = defaultdict(list)
-    for r in records:
+
+def _iter_weeks(start_date: date, end_date: date):
+    """逐週產生 (week_start, week_end)，週一為起點"""
+    # 對齊到週一
+    current = start_date - timedelta(days=start_date.weekday())
+    while current <= end_date:
+        week_end = min(current + timedelta(days=6), end_date)
+        week_start = max(current, start_date)
+        yield week_start, week_end
+        current += timedelta(days=7)
+
+
+def _dates_in_range(week_start: date, week_end: date):
+    d = week_start
+    while d <= week_end:
+        yield d
+        d += timedelta(days=1)
+
+
+# ── 各模組的週塊資料整理 ──────────────────────────────────
+
+def _block_drug(user_id: str, week_start: date, week_end: date,
+                all_drug_records: list) -> list[str]:
+    """
+    回傳該週用藥的行列表。
+    - required_slots：使用者設定的時段（早/午/晚/睡前）
+    - 全週正常 → 一行「用藥：全週正常 ✅」
+    - 有漏 → 列出漏服的日期+時段
+    - 需要時 → 單獨列出
+    """
+    required_slots = get_drug_slots(user_id)
+    recorded_slots = get_recorded_slots_by_date(user_id)  # {"2026-01-05": {"早", "晚"}, ...}
+
+    lines = []
+
+    # ── 正規時段漏填檢查 ──
+    if required_slots:
+        missing_entries = []
+        for d in _dates_in_range(week_start, week_end):
+            d_str = d.strftime("%Y-%m-%d")
+            filled = recorded_slots.get(d_str, set())
+            for slot in required_slots:
+                if slot not in filled:
+                    missing_entries.append(f"{d.month}/{d.day} {slot}❌")
+
+        if missing_entries:
+            lines.append(f"用藥：{'、'.join(missing_entries)}")
+        else:
+            lines.append("用藥：全週正常 ✅")
+
+    # ── 需要時 ──
+    prn_drugs = []
+    for r in all_drug_records:
+        try:
+            d_str = r["filltime"][:10]
+            d = date.fromisoformat(d_str)
+            if week_start <= d <= week_end and r.get("eattime", "").strip() == "需要時":
+                name = r.get("drugname", "").strip()
+                pieces = r.get("drugpieces", "")
+                label = f"{d.month}/{d.day} {name}"
+                if pieces:
+                    label += f" {pieces}顆"
+                prn_drugs.append(label)
+        except Exception:
+            continue
+
+    if prn_drugs:
+        lines.append(f"需要時：{'、'.join(prn_drugs)}")
+
+    return lines
+
+
+def _block_symptom(week_start: date, week_end: date, all_symptom_records: list) -> list[str]:
+    """不舒服：症狀名稱（次數，好發時間）"""
+    symptom_data = defaultdict(lambda: {"count": 0, "times": []})
+
+    for r in all_symptom_records:
         try:
             d = date.fromisoformat(r["filltime"][:10])
-            systolic = float(r.get("mmHg1", 0))
-            diastolic = float(r.get("mmHg2", 0))
-            bpm = float(r.get("bpm", 0))
-            if systolic > 0:
-                weekly[_week_label(d)].append((systolic, diastolic, bpm))
+            if not (week_start <= d <= week_end):
+                continue
+            name = r.get("symptomname", "").strip()
+            if not name or name == "（無症狀）":
+                continue
+            symptom_data[name]["count"] += 1
+            occur_time = r.get("occurtime", "").strip()
+            if occur_time:
+                symptom_data[name]["times"].append(occur_time)
         except Exception:
             continue
 
-    lines = ["【血壓心率】"]
-    for week, values in sorted(weekly.items()):
-        avg_sys = sum(v[0] for v in values) / len(values)
-        avg_dia = sum(v[1] for v in values) / len(values)
-        avg_bpm = sum(v[2] for v in values) / len(values)
-        note = ""
-        if avg_sys > 130:
-            note = " ⚠️偏高"
-        elif avg_sys < 90:
-            note = " ⚠️偏低"
-        lines.append(
-            f"  {week}：收縮壓 {avg_sys:.0f} / 舒張壓 {avg_dia:.0f} / 心率 {avg_bpm:.0f}{note}"
-        )
-    return "\n".join(lines)
+    if not symptom_data:
+        return []
 
-
-def _prepare_drug(records: list) -> str:
-    """用藥：每日列出藥物，標註變動"""
-    if not records:
-        return ""
-
-    # 按日期分組
-    daily = defaultdict(set)
-    for r in records:
-        try:
-            d = r["filltime"][:10]
-            name = r.get("drugname", "").strip()
-            if name:
-                daily[d].add(name)
-        except Exception:
-            continue
-
-    if not daily:
-        return ""
-
-    sorted_dates = sorted(daily.keys())
-    lines = ["【用藥紀錄】"]
-    prev_drugs = None
-    for d in sorted_dates:
-        drugs = daily[d]
-        drug_str = "、".join(sorted(drugs))
-        if prev_drugs is None:
-            lines.append(f"  {d}：{drug_str}")
+    parts = []
+    for name, info in symptom_data.items():
+        count = info["count"]
+        times = info["times"]
+        if times:
+            # 取最常見的發生時間
+            most_common = max(set(times), key=times.count)
+            parts.append(f"{name}（{count}次，{most_common}）")
         else:
-            added = drugs - prev_drugs
-            removed = prev_drugs - drugs
-            change = ""
-            if added:
-                change += f" 🆕新增：{'、'.join(sorted(added))}"
-            if removed:
-                change += f" ❌停用：{'、'.join(sorted(removed))}"
-            if change:
-                lines.append(f"  {d}：{drug_str}{change}")
-            else:
-                # 相同就只記錄最後一天
-                lines[-1] = f"  {sorted_dates[0]}～{d}：{drug_str}（無變動）"
-        prev_drugs = drugs
+            parts.append(f"{name}（{count}次）")
 
-    return "\n".join(lines)
+    return [f"不舒服：{'、'.join(parts)}"]
 
 
-def _prepare_weight(records: list) -> str:
-    """體重：起始/結束/趨勢"""
-    if not records:
-        return ""
-
-    weights = []
-    for r in records:
+def _block_weight(week_start: date, week_end: date, all_weight_records: list) -> list[str]:
+    """體重：週初→週末"""
+    week_weights = []
+    for r in all_weight_records:
         try:
-            d = r["filltime"][:10]
+            d = date.fromisoformat(r["filltime"][:10])
+            if not (week_start <= d <= week_end):
+                continue
             w = float(r.get("wei", 0))
             if w > 0:
-                weights.append((d, w))
+                week_weights.append((d, w))
         except Exception:
             continue
 
-    if not weights:
-        return ""
+    if not week_weights:
+        return []
 
-    weights.sort()
-    start_d, start_w = weights[0]
-    end_d, end_w = weights[-1]
-    diff = end_w - start_w
-    trend = f"{'增加' if diff > 0 else '減少'} {abs(diff):.1f} kg" if diff != 0 else "持平"
-    return f"【體重】\n  {start_d}：{start_w} kg → {end_d}：{end_w} kg（{trend}）"
+    week_weights.sort()
+    if len(week_weights) == 1:
+        return [f"體重：{week_weights[0][1]} kg"]
+
+    start_w = week_weights[0][1]
+    end_w = week_weights[-1][1]
+    return [f"體重：{start_w} → {end_w} kg"]
 
 
-def _prepare_life(records: list) -> str:
-    """生活紀錄：每週情緒統計 + 日記前200字"""
-    if not records:
-        return ""
+def _block_life(week_start: date, week_end: date, all_life_records: list) -> list[str]:
+    """生活：情緒統計 + 日記全文合併"""
+    emotions = []
+    diaries = []
 
-    weekly_emotions = defaultdict(list)
-    weekly_diary = defaultdict(list)
-
-    for r in records:
+    for r in all_life_records:
         try:
             d = date.fromisoformat(r["filltime"][:10])
-            week = _week_label(d)
-            emotion = r.get("emotion", "")
-            diary = r.get("liferecord", "").strip()
+            if not (week_start <= d <= week_end):
+                continue
+            emotion = r.get("emotion", "").strip()
             if emotion:
                 for e in emotion.split("、"):
                     e = e.strip()
                     if e:
-                        weekly_emotions[week].append(e)
+                        emotions.append(e)
+            diary = r.get("liferecord", "").strip()
             if diary:
-                weekly_diary[week].append(diary)
+                diaries.append(diary)
         except Exception:
             continue
 
-    lines = ["【生活紀錄】"]
-    for week in sorted(set(list(weekly_emotions.keys()) + list(weekly_diary.keys()))):
-        emotions = weekly_emotions.get(week, [])
-        diaries = weekly_diary.get(week, [])
+    if not emotions and not diaries:
+        return []
 
+    parts = []
+    if emotions:
         emotion_count = defaultdict(int)
         for e in emotions:
             emotion_count[e] += 1
-        emotion_str = "、".join(f"{e}×{n}" for e, n in emotion_count.items()) if emotion_count else "無"
+        emotion_str = "、".join(f"{e}×{n}" for e, n in emotion_count.items())
+        parts.append(f"情緒〔{emotion_str}〕")
 
-        diary_combined = " ".join(diaries)
-        if len(diary_combined) > 200:
-            diary_combined = diary_combined[:200] + "…"
+    if diaries:
+        diary_text = " ".join(diaries)
+        parts.append(f"日記：{diary_text}")
 
-        lines.append(f"  {week}：情緒〔{emotion_str}〕")
-        if diary_combined:
-            lines.append(f"    日記：{diary_combined}")
-
-    return "\n".join(lines)
+    return [f"生活：{'　'.join(parts)}"]
 
 
-def _prepare_symptom(records: list) -> str:
-    """不舒服的地方：症狀名稱頻率 + 情境標籤"""
-    if not records:
-        return ""
+def _block_sleep(week_start: date, week_end: date, all_sleep_records: list) -> list[str]:
+    """睡眠：週平均時數與品質"""
+    durations = []
+    qualities = []
 
-    real_records = [r for r in records if r.get("symptomname", "") != "（無症狀）"]
-    if not real_records:
-        return "【不舒服的地方】\n  此期間無症狀紀錄"
-
-    symptom_count = defaultdict(int)
-    context_count = defaultdict(int)
-    for r in real_records:
-        name = r.get("symptomname", "").strip()
-        if name:
-            symptom_count[name] += 1
-        ctx = r.get("context", "")
-        for c in ctx.split(","):
-            c = c.strip()
-            if c:
-                context_count[c] += 1
-
-    lines = ["【不舒服的地方】"]
-    top_symptoms = sorted(symptom_count.items(), key=lambda x: -x[1])[:10]
-    lines.append("  症狀頻率：" + "、".join(f"{n}（{c}次）" for n, c in top_symptoms))
-    if context_count:
-        top_ctx = sorted(context_count.items(), key=lambda x: -x[1])[:5]
-        lines.append("  常見情境：" + "、".join(f"{n}（{c}次）" for n, c in top_ctx))
-    return "\n".join(lines)
-
-
-def _prepare_sleep(records: list) -> str:
-    """睡眠：每週平均時數與品質 + 標籤頻率"""
-    if not records:
-        return ""
-
-    weekly_duration = defaultdict(list)
-    weekly_quality = defaultdict(list)
-    tag_count = defaultdict(int)
-
-    for r in records:
+    for r in all_sleep_records:
         try:
             d = date.fromisoformat(r["filltime"][:10])
-            week = _week_label(d)
+            if not (week_start <= d <= week_end):
+                continue
             dur = r.get("duration")
             if dur is not None:
-                weekly_duration[week].append(float(dur))
+                durations.append(float(dur))
             qual = r.get("quality")
             if qual is not None:
-                weekly_quality[week].append(float(qual))
-            tags = r.get("tags", "")
-            for t in tags.split(","):
-                t = t.strip()
-                if t:
-                    tag_count[t] += 1
+                qualities.append(float(qual))
         except Exception:
             continue
 
-    lines = ["【睡眠】"]
-    for week in sorted(set(list(weekly_duration.keys()) + list(weekly_quality.keys()))):
-        dur_vals = weekly_duration.get(week, [])
-        qual_vals = weekly_quality.get(week, [])
-        dur_str = f"{sum(dur_vals)/len(dur_vals):.1f}小時" if dur_vals else "—"
-        qual_str = f"{sum(qual_vals)/len(qual_vals):.1f}/5" if qual_vals else "—"
-        lines.append(f"  {week}：平均睡眠 {dur_str}，品質 {qual_str}")
+    if not durations and not qualities:
+        return []
 
-    if tag_count:
-        top_tags = sorted(tag_count.items(), key=lambda x: -x[1])[:5]
-        lines.append("  常見標籤：" + "、".join(f"{t}（{c}次）" for t, c in top_tags))
+    parts = []
+    if durations:
+        parts.append(f"平均 {sum(durations)/len(durations):.1f} 小時")
+    if qualities:
+        parts.append(f"品質 {sum(qualities)/len(qualities):.1f}/5")
 
-    return "\n".join(lines)
+    return [f"睡眠：{'，'.join(parts)}"]
 
 
-def _prepare_simple(records: list, module_key: str, field: str, display_name: str, unit: str,
-                     high_threshold: float = None, low_threshold: float = None) -> str:
-    """血糖/體溫等簡單數值：每週平均，標註異常"""
-    if not records:
-        return ""
+def _block_simple(week_start: date, week_end: date, all_records: list,
+                   field: str, display_name: str, unit: str,
+                   high_threshold: float = None, low_threshold: float = None) -> list[str]:
+    """血壓/血糖/體溫：週平均 + 標異常日期"""
+    daily_vals = defaultdict(list)
 
-    weekly = defaultdict(list)
-    for r in records:
+    for r in all_records:
         try:
             d = date.fromisoformat(r["filltime"][:10])
+            if not (week_start <= d <= week_end):
+                continue
             val = float(r.get(field, 0))
             if val > 0:
-                weekly[_week_label(d)].append(val)
+                daily_vals[d].append(val)
         except Exception:
             continue
 
-    if not weekly:
-        return ""
+    if not daily_vals:
+        return []
 
-    lines = [f"【{display_name}】"]
-    for week, vals in sorted(weekly.items()):
-        avg = sum(vals) / len(vals)
-        note = ""
-        if high_threshold and avg > high_threshold:
-            note = " ⚠️偏高"
-        elif low_threshold and avg < low_threshold:
-            note = " ⚠️偏低"
-        lines.append(f"  {week}：平均 {avg:.1f} {unit}{note}")
-    return "\n".join(lines)
+    all_vals = [v for vals in daily_vals.values() for v in vals]
+    avg = sum(all_vals) / len(all_vals)
+    line = f"{display_name}：週平均 {avg:.1f} {unit}"
+
+    # 標注異常日期
+    abnormal = []
+    for d, vals in sorted(daily_vals.items()):
+        day_avg = sum(vals) / len(vals)
+        if high_threshold and day_avg > high_threshold:
+            abnormal.append(f"{d.month}/{d.day} {day_avg:.0f}偏高⚠️")
+        elif low_threshold and day_avg < low_threshold:
+            abnormal.append(f"{d.month}/{d.day} {day_avg:.0f}偏低⚠️")
+
+    if abnormal:
+        line += f"　{'、'.join(abnormal)}"
+
+    return [line]
 
 
-def prepare_data_for_ai(user_id: str, start_date: date, end_date: date, selected_modules: list) -> str:
+def _block_heartrate(week_start: date, week_end: date, all_records: list) -> list[str]:
+    """血壓：週平均收縮壓/舒張壓 + 標異常日期"""
+    daily_sys = defaultdict(list)
+    daily_dia = defaultdict(list)
+
+    for r in all_records:
+        try:
+            d = date.fromisoformat(r["filltime"][:10])
+            if not (week_start <= d <= week_end):
+                continue
+            sys = float(r.get("mmHg1", 0))
+            dia = float(r.get("mmHg2", 0))
+            if sys > 0:
+                daily_sys[d].append(sys)
+                daily_dia[d].append(dia)
+        except Exception:
+            continue
+
+    if not daily_sys:
+        return []
+
+    all_sys = [v for vals in daily_sys.values() for v in vals]
+    all_dia = [v for vals in daily_dia.values() for v in vals]
+    avg_sys = sum(all_sys) / len(all_sys)
+    avg_dia = sum(all_dia) / len(all_dia)
+    line = f"血壓：週平均 {avg_sys:.0f}/{avg_dia:.0f} mmHg"
+
+    abnormal = []
+    for d in sorted(daily_sys.keys()):
+        day_sys = sum(daily_sys[d]) / len(daily_sys[d])
+        if day_sys > 130:
+            abnormal.append(f"{d.month}/{d.day} {day_sys:.0f}偏高⚠️")
+        elif day_sys < 90:
+            abnormal.append(f"{d.month}/{d.day} {day_sys:.0f}偏低⚠️")
+
+    if abnormal:
+        line += f"　{'、'.join(abnormal)}"
+
+    return [line]
+
+
+# ── 主要整理函式 ──────────────────────────────────────────
+
+def prepare_data_for_ai(user_id: str, start_date: date, end_date: date,
+                         selected_modules: list) -> str:
     """
-    從 Firebase 讀取各模組資料，整理成給 Gemini 的純文字 context。
+    從 Firebase 讀取各模組資料，整理成以週為單位的純文字給 Gemini。
     selected_modules: 模組 key 列表，如 ['heartrate', 'drug', 'life', ...]
     """
     MODULE_TO_NODE = {
@@ -287,49 +326,62 @@ def prepare_data_for_ai(user_id: str, start_date: date, end_date: date, selected
         "sleep": "Sleep",
     }
 
-    sections = []
-
+    # 一次取出所有模組的原始資料
+    all_records = {}
     for mod in selected_modules:
         node = MODULE_TO_NODE.get(mod)
-        if not node:
-            continue
-        records = get_user_records(user_id, node, start_date, end_date)
+        if node:
+            all_records[mod] = get_user_records(user_id, node, start_date, end_date)
 
-        if mod == "heartrate":
-            s = _prepare_heartrate(records)
-        elif mod == "drug":
-            s = _prepare_drug(records)
-        elif mod == "weight":
-            s = _prepare_weight(records)
-        elif mod == "life":
-            s = _prepare_life(records)
-        elif mod == "symptom":
-            s = _prepare_symptom(records)
-        elif mod == "sleep":
-            s = _prepare_sleep(records)
-        elif mod == "sugar":
-            s = _prepare_simple(records, mod, "sugarlevel", "血糖", "mg/dL",
-                                 high_threshold=126, low_threshold=70)
-        elif mod == "temp":
-            s = _prepare_simple(records, mod, "temp", "體溫", "°C",
-                                 high_threshold=37.5, low_threshold=36.0)
-        else:
-            s = ""
+    # 逐週建立區塊
+    week_blocks = []
+    for week_start, week_end in _iter_weeks(start_date, end_date):
+        label = f"### {_week_label(week_start)}（{_week_range_label(week_start, week_end)}）"
+        lines = [label]
 
-        if s:
-            sections.append(s)
+        if "drug" in selected_modules:
+            lines += _block_drug(user_id, week_start, week_end, all_records.get("drug", []))
 
-    if not sections:
+        if "symptom" in selected_modules:
+            lines += _block_symptom(week_start, week_end, all_records.get("symptom", []))
+
+        if "weight" in selected_modules:
+            lines += _block_weight(week_start, week_end, all_records.get("weight", []))
+
+        if "sleep" in selected_modules:
+            lines += _block_sleep(week_start, week_end, all_records.get("sleep", []))
+
+        if "life" in selected_modules:
+            lines += _block_life(week_start, week_end, all_records.get("life", []))
+
+        if "heartrate" in selected_modules:
+            lines += _block_heartrate(week_start, week_end, all_records.get("heartrate", []))
+
+        if "sugar" in selected_modules:
+            lines += _block_simple(week_start, week_end, all_records.get("sugar", []),
+                                   "sugarlevel", "血糖", "mg/dL",
+                                   high_threshold=126, low_threshold=70)
+
+        if "temp" in selected_modules:
+            lines += _block_simple(week_start, week_end, all_records.get("temp", []),
+                                   "temp", "體溫", "°C",
+                                   high_threshold=37.5, low_threshold=36.0)
+
+        # 如果該週除了標題外沒有任何資料就略過
+        if len(lines) > 1:
+            week_blocks.append("\n".join(lines))
+
+    if not week_blocks:
         return "（此期間無任何紀錄）"
 
-    return "\n\n".join(sections)
+    return "\n\n".join(week_blocks)
 
+
+# ── Gemini 呼叫 ───────────────────────────────────────────
 
 def generate_report_with_gemini(user_name: str, data_context: str,
                                  start_date: date, end_date: date) -> str:
-    """
-    呼叫 Gemini API，回傳 markdown 格式的健康報告。
-    """
+    """呼叫 Gemini API，回傳 markdown 格式的健康報告。"""
     api_key = st.secrets.get("gemini", {}).get("api_key", "")
     if not api_key:
         raise ValueError("請在 .streamlit/secrets.toml 設定 [gemini] api_key")
@@ -341,42 +393,40 @@ def generate_report_with_gemini(user_name: str, data_context: str,
 使用者：{user_name}
 紀錄期間：{start_date.strftime("%Y年%m月%d日")} 至 {end_date.strftime("%Y年%m月%d日")}
 
-健康紀錄資料：
+健康紀錄資料（以週為單位）：
 ---
 {data_context}
 ---
 
-請依以下格式撰寫報告（使用繁體中文，語氣專業但易讀）：
+請依以下格式撰寫報告（繁體中文，語氣專業但易讀）：
 
 # {user_name} 的狀況記錄
 **紀錄期間：{start_date.strftime("%Y/%m/%d")} ～ {end_date.strftime("%Y/%m/%d")}**
 
-## 各項指標總結
-（逐一說明有紀錄的各模組概況，注意趨勢與特殊數值）
+## 各週摘要
+（逐週說明重要事項，略過平淡無事的週次）
 
-## 特殊時間點與跨項目關聯分析
-（這是最重要的部分。請找出特殊時間點，例如某週某數值異常，並對照同期其他紀錄（日記內容、藥物變動、症狀、睡眠）尋找可能關聯。
-例如：「X月第N週血壓偏高，同期日記記錄提到壓力增加，且睡眠品質下降至X分」）
+## 跨週關聯分析
+（找出跨週的關聯，例如：某週日記提到月經來潮，同週頭痛頻繁；某段時間血壓偏高與睡眠品質下降同時出現等。重點放在可能對醫師有參考價值的觀察）
 
 ## 整體觀察
 （2-4句整體觀察，供醫師參考，非診斷）
 """
 
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash-lite",
         contents=prompt,
     )
     return response.text
 
 
+# ── Word 匯出 ─────────────────────────────────────────────
+
 def export_report_to_docx(report_text: str, user_name: str,
                            start_date: date, end_date: date) -> BytesIO:
-    """
-    將 markdown 格式報告轉成 Word 檔，回傳 BytesIO。
-    """
+    """將 markdown 格式報告轉成 Word 檔，回傳 BytesIO。"""
     doc = Document()
 
-    # 設定預設字型
     style = doc.styles["Normal"]
     style.font.name = "微軟正黑體"
     style.font.size = Pt(11)
@@ -400,7 +450,6 @@ def export_report_to_docx(report_text: str, user_name: str,
         elif line == "":
             doc.add_paragraph("")
         else:
-            # 處理行內粗體 **text**
             if "**" in line:
                 p = doc.add_paragraph()
                 parts = line.split("**")

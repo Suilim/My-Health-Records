@@ -49,7 +49,7 @@ with tab1:
     st.markdown("---")
     if mmHg1 is not None and mmHg2 is not None:
         if mmHg1 < 90 or mmHg2 < 60:
-            st.info("💙 血壓偏低")
+            st.info("💙 血壓偏低（建議諮詢醫師）")
         elif mmHg1 < 120 and mmHg2 < 80:
             st.success("💚 血壓正常")
         elif mmHg1 < 140 or mmHg2 < 90:

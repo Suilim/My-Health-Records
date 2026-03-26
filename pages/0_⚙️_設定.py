@@ -1,6 +1,6 @@
 import streamlit as st
 from firebase_utils import db
-from write_records import update_user_name, delete_user_all_data
+from write_records import update_user_name, update_user_nickname, delete_user_all_data
 from settings_utils import (
     MODULE_NAMES,
     DRUG_SLOT_OPTIONS,
@@ -101,9 +101,19 @@ if modules.get("drug", True):
 st.markdown("---")
 st.subheader("👤 帳號管理")
 
-# 取得目前姓名
+# 取得目前姓名與暱稱
 user_info = db.reference(f'User/{user_id}').get() or {}
 current_name = user_info.get("name", "")
+current_nickname = user_info.get("nickname", "")
+
+# ----- 修改暱稱 -----
+with st.expander("✏️ 修改暱稱（顯示於登入按鈕）"):
+    new_nickname = st.text_input("暱稱", value=current_nickname, key="new_nickname_input", placeholder="例如：🐻 小熊")
+    if st.button("儲存暱稱", width="stretch", type="primary"):
+        update_user_nickname(user_id, new_nickname.strip())
+        st.session_state.user_nickname = new_nickname.strip()
+        st.success("暱稱已更新！")
+        st.rerun()
 
 # ----- 修改姓名 -----
 with st.expander("✏️ 修改姓名"):
@@ -135,7 +145,7 @@ with st.expander("🗑️ 刪除帳號"):
 
 
 st.markdown("---")
-st.subheader("運動紀錄、睡眠紀錄")
+st.subheader("飲食紀錄、運動紀錄")
 st.info("功能開發中...")
 
 

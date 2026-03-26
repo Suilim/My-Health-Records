@@ -25,12 +25,22 @@ def create_user(user_id, name, password):
 
 def update_user_name(user_id, new_name):
     """
-    更新用戶姓名
+    更新用戶名稱
     路徑: User/{userId}
     """
     ref = db.reference(f'User/{user_id}')
     ref.update({"name": str(new_name)})
-    print(f"用戶 {user_id} 姓名更新為: {new_name}")
+    print(f"用戶 {user_id} 名稱更新為: {new_name}")
+
+
+def update_user_nickname(user_id, nickname):
+    """
+    更新用戶暱稱（顯示於登入按鈕，不含真名）
+    路徑: User/{userId}
+    """
+    ref = db.reference(f'User/{user_id}')
+    ref.update({"nickname": str(nickname)})
+    print(f"用戶 {user_id} 暱稱更新為: {nickname}")
 
 
 def delete_user_all_data(user_id):
@@ -40,7 +50,7 @@ def delete_user_all_data(user_id):
     """
     data_nodes = [
         "Sugar", "Weight", "BodyFat", "Muscle", "BMI",
-        "HeartRate", "Temp", "Drug", "Life", "Symptom"
+        "HeartRate", "Temp", "Drug", "Life", "Symptom","Sleep"
     ]
     for node in data_nodes:
         db.reference(f'{node}/{user_id}').delete()
@@ -57,7 +67,10 @@ def delete_user_all_data(user_id):
             "sugar": True,       # 血糖
             "temp": True,        # 體溫
             "drug": True,        # 用藥
-            "life": True         # 生活紀錄
+            "life": True,        # 生活紀錄
+            "symptom": True,     # 症狀
+            "sleep": True        # 睡眠
+
         }
     })
     print(f"用戶 {user_id} 設定初始化完成")

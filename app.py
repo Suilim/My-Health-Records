@@ -43,6 +43,8 @@ if "user_id" not in st.session_state:
     st.session_state.user_id = None
 if "user_name" not in st.session_state:
     st.session_state.user_name = None
+if "user_nickname" not in st.session_state:
+    st.session_state.user_nickname = None
 if "selected_user" not in st.session_state:
     st.session_state.selected_user = None  # 記錄選擇的使用者
 if "show_add_user" not in st.session_state:
@@ -57,7 +59,8 @@ def get_all_users():
         for user_id, user_data in users.items():
             user_list.append({
                 "id": user_id,
-                "name": user_data.get("name", "未知")
+                "name": user_data.get("name", "未知"),
+                "nickname": user_data.get("nickname", "")
             })
         return user_list
     return []
@@ -90,12 +93,13 @@ def login_page():
 
     # 如果還沒選擇使用者，顯示使用者列表
     if st.session_state.selected_user is None and not st.session_state.show_add_user:
-        st.subheader("👤 請點選您的名字")
+        st.subheader("👤 請點選您的ID與綽號")
 
         # 用大按鈕列出所有使用者，方便點選
         for user in users:
+            label = user["id"] if not user["nickname"] else f"{user['id']} · {user['nickname']}"
             if st.button(
-                user['name'],
+                label,
                 key=f"user_{user['id']}",
                 width='stretch',
                 type="primary"
@@ -114,7 +118,8 @@ def login_page():
         st.subheader("➕ 新增使用者")
 
         new_id = st.text_input("學員編號：", key="new_user_id")
-        new_name = st.text_input("姓名：", key="new_user_name")
+        new_name = st.text_input("真實姓名：", key="new_user_name")
+        new_nickname = st.text_input("暱稱（選填，顯示於登入按鈕）：", key="new_user_nickname", placeholder="例如：🐻 小熊")
         new_password = st.text_input("密碼：", type="password", key="new_user_password")
         new_password_confirm = st.text_input("確認密碼：", type="password", key="new_user_password_confirm")
 
@@ -133,6 +138,8 @@ def login_page():
                         st.warning(f"學員編號 {new_id} 已被使用，請換一個編號。")
                     else:
                         create_user(new_id, new_name, new_password)
+                        if new_nickname.strip():
+                            db.reference(f'User/{new_id}').update({"nickname": new_nickname.strip()})
                         st.success(f"使用者 {new_name} 新增成功！")
                         st.session_state.show_add_user = False
                         st.rerun()
@@ -147,7 +154,8 @@ def login_page():
         selected_user = st.session_state.selected_user
         selected_id = selected_user['id']
 
-        st.subheader(f"🔐 {selected_user['name']}，請輸入密碼")
+        display_name = selected_user["nickname"] if selected_user["nickname"] else selected_id
+        st.subheader(f"🔐 {display_name}，請輸入密碼")
         st.markdown(f"**學員編號：** {selected_id}")
 
         password = st.text_input(
@@ -165,6 +173,7 @@ def login_page():
                         st.session_state.logged_in = True
                         st.session_state.user_id = selected_id
                         st.session_state.user_name = selected_user['name']
+                        st.session_state.user_nickname = selected_user['nickname']
                         st.session_state.selected_user = None  # 清除選擇
                         st.success("登入成功！")
                         st.rerun()
@@ -341,6 +350,7 @@ def main_menu():
         st.session_state.logged_in = False
         st.session_state.user_id = None
         st.session_state.user_name = None
+        st.session_state.user_nickname = None
         st.rerun()
 
 # 主程式邏輯

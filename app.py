@@ -10,7 +10,8 @@ from settings_utils import (
     update_module_setting,
     check_today_records,
     get_all_missing_records,
-    get_reminder_settings
+    get_reminder_settings,
+    get_calendar_enabled
 )
 
 # 頁面設定
@@ -196,6 +197,8 @@ def main_menu():
         "life": "pages/6_🏃_生活.py",
         "symptom": "pages/7_🤧_不舒服的地方.py",
         "sleep": "pages/8_😴_睡眠.py",
+        "food": "pages/9_🍽️_飲食與飲水.py",
+        "drink": "pages/9_🍽️_飲食與飲水.py",
     }
 
     # 模組對應的 emoji
@@ -208,6 +211,8 @@ def main_menu():
         "life": "🏃",
         "symptom": "🤧",
         "sleep": "😴",
+        "food": "🍚",
+        "drink": "🥤",
     }
 
     # ===== 待補填通知 (最上方) =====
@@ -230,17 +235,18 @@ def main_menu():
         # 把所有待補填項目整理成列表，按日期排序
         all_missing = []
         for module_key, dates_or_slots in missing_records.items():
-            if module_key == "drug" and dates_or_slots and isinstance(dates_or_slots[0], dict):
-                # 時段級別的用藥漏填
+            if module_key in ["drug", "food", "drink"] and dates_or_slots and isinstance(dates_or_slots[0], dict):
+                # 時段級別的漏填（用藥、飲食、飲品）
                 for item in dates_or_slots:
+                    module_name = MODULE_NAMES.get(module_key, module_key)
                     all_missing.append({
                         "date": item["date"],
-                        "module_key": "drug",
-                        "module_name": f"用藥 {item['slot']}",
+                        "module_key": module_key,
+                        "module_name": f"{module_name} {item['slot']}",
                         "slot": item["slot"]
                     })
             else:
-                # 其他模組（或無時段設定的 drug）
+                # 其他模組（或無時段設定的模組）
                 for date in dates_or_slots:
                     all_missing.append({
                         "date": date,
@@ -303,8 +309,8 @@ def main_menu():
                     icon = MODULE_ICONS.get(module_key, "📝")
                     page_path = MODULE_PAGES.get(module_key)
 
-                    if module_key == "drug" and isinstance(status, dict):
-                        # 用藥有時段設定，部分填寫
+                    if module_key in ["drug", "food", "drink"] and isinstance(status, dict):
+                        # 時段級別設定，部分填寫（用藥、飲食、飲品）
                         missing = status["missing"]
                         missing_text = "、".join(missing)
                         st.page_link(
@@ -327,6 +333,80 @@ def main_menu():
                             width='stretch'
                         )
 
+    # ==== 日曆總覽 ====
+    if get_calendar_enabled(user_id):
+        from streamlit_calendar import calendar as st_calendar
+        from calendar_utils import get_month_module_dates, MODULE_COLORS, MODULE_EMOJIS
+        st.markdown("---")
+
+        if "home_cal_year" not in st.session_state:
+            st.session_state.home_cal_year = today.year
+        if "home_cal_month" not in st.session_state:
+            st.session_state.home_cal_month = today.month
+        if "home_cal_open" not in st.session_state:
+            st.session_state.home_cal_open = False
+
+        if st.button("📅 日曆總覽" if not st.session_state.home_cal_open else "📅 日曆總覽 ▲", key="toggle_home_cal", width="stretch"):
+            st.session_state.home_cal_open = not st.session_state.home_cal_open
+            st.rerun()
+
+        if st.session_state.home_cal_open:
+            cal_year = st.session_state.home_cal_year
+            cal_month = st.session_state.home_cal_month
+
+            if st.button("🔄 重新載入", key="reload_home_calendar"):
+                get_month_module_dates.clear()
+                st.rerun()
+
+            with st.spinner("載入日曆..."):
+                module_dates = get_month_module_dates(user_id, cal_year, cal_month)
+
+            events = []
+            for module_key, dates in module_dates.items():
+                color = MODULE_COLORS.get(module_key, "#888888")
+                emoji = MODULE_EMOJIS.get(module_key, "📝")
+                name = MODULE_NAMES.get(module_key, module_key)
+                for d in dates:
+                    events.append({
+                        "title": f"{emoji} {name}",
+                        "start": d.strftime('%Y-%m-%d'),
+                        "backgroundColor": color,
+                        "borderColor": color,
+                        "textColor": "white",
+                    })
+
+            cal_state = st_calendar(
+                events=events,
+                options={
+                    "initialView": "dayGridMonth",
+                    "locale": "zh-tw",
+                    "headerToolbar": {"left": "prev,next today", "center": "title", "right": ""},
+                    "buttonText": {"today": "今天"},
+                    "editable": False,
+                    "selectable": False,
+                    "initialDate": f"{cal_year}-{cal_month:02d}-01",
+                },
+                key="home_calendar"
+            )
+
+            # 偵測月份切換（從 eventsSet 或 datesSet 的 view.currentStart 讀取）
+            if cal_state:
+                view = None
+                if cal_state.get("eventsSet"):
+                    view = cal_state["eventsSet"].get("view", {})
+                elif cal_state.get("datesSet"):
+                    view = cal_state["datesSet"].get("view", {})
+                if view:
+                    current_start = view.get("currentStart", "")
+                    if current_start:
+                        from datetime import timedelta
+                        mid_date = datetime.strptime(current_start[:10], "%Y-%m-%d") + timedelta(days=7)
+                        new_year, new_month = mid_date.year, mid_date.month
+                        if (new_year, new_month) != (cal_year, cal_month):
+                            st.session_state.home_cal_year = new_year
+                            st.session_state.home_cal_month = new_month
+                            st.rerun()
+
     # ==== 登出 ====
     st.markdown("---")
     if st.button("🚪 登出", width='stretch'):
@@ -334,6 +414,10 @@ def main_menu():
         st.session_state.user_id = None
         st.session_state.user_name = None
         st.session_state.user_nickname = None
+        # 清理各頁面的 session cache，避免新帳號繼承舊帳號的資料
+        for key in list(st.session_state.keys()):
+            if key not in ["logged_in", "user_id", "user_name", "user_nickname"]:
+                del st.session_state[key]
         st.rerun()
 
     bottom_nav("app")

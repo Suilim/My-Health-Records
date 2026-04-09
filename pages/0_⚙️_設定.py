@@ -5,12 +5,19 @@ from nav_utils import bottom_nav, apply_global_css
 from settings_utils import (
     MODULE_NAMES,
     DRUG_SLOT_OPTIONS,
+    FOOD_DRINK_SLOT_OPTIONS,
     get_user_settings,
     update_module_setting,
     get_reminder_settings,
     update_reminder_setting,
     get_drug_slots,
-    save_drug_slots
+    save_drug_slots,
+    get_food_slots,
+    save_food_slots,
+    get_drink_slots,
+    save_drink_slots,
+    get_calendar_enabled,
+    set_calendar_enabled
 )
 
 st.set_page_config(page_title="設定", page_icon="⚙️", initial_sidebar_state="collapsed")
@@ -34,6 +41,12 @@ st.caption("開啟的模組會在首頁顯示今日填寫狀態。")
 settings = get_user_settings(user_id)
 modules = settings.get("modules", {})
 
+# 確保所有模組 key 都存在於 Firebase（修補舊帳號缺少 food/drink 等 key）
+for key in MODULE_NAMES.keys():
+    if key not in modules:
+        update_module_setting(user_id, key, True)
+        modules[key] = True
+
 # 用 columns 排列開關
 col1, col2 = st.columns(2)
 
@@ -52,6 +65,15 @@ for i, module_key in enumerate(module_keys):
         if new_state != current_state:
             update_module_setting(user_id, module_key, new_state)
             st.rerun()
+
+# ===== 額外功能 =====
+st.markdown("---")
+st.subheader("📅 額外功能")
+calendar_enabled = get_calendar_enabled(user_id)
+new_cal = st.toggle("日曆總覽（在首頁顯示月曆）", value=calendar_enabled, key="toggle_calendar")
+if new_cal != calendar_enabled:
+    set_calendar_enabled(user_id, new_cal)
+    st.rerun()
 
 # ===== 提醒設定 =====
 st.markdown("---")
@@ -96,6 +118,58 @@ if modules.get("drug", True):
 
     if sorted(new_slots) != sorted(current_drug_slots):
         save_drug_slots(user_id, new_slots)
+        st.rerun()
+
+# ===== 飲食時段設定 =====
+if modules.get("food", True):
+    st.markdown("---")
+    st.subheader("🍚 飲食時段設定")
+    st.caption("勾選您每天應記錄飲食的時段，系統會據此偵測哪個時段漏填。")
+    st.caption("如果不勾選，系統只會偵測「整天有沒有填」。")
+
+    current_food_slots = get_food_slots(user_id)
+
+    col1, col2, col3, col4 = st.columns(4)
+    new_food_slots = []
+
+    for i, slot in enumerate(FOOD_DRINK_SLOT_OPTIONS):
+        with [col1, col2, col3, col4][i]:
+            checked = st.checkbox(
+                slot,
+                value=(slot in current_food_slots),
+                key=f"food_slot_{slot}"
+            )
+            if checked:
+                new_food_slots.append(slot)
+
+    if sorted(new_food_slots) != sorted(current_food_slots):
+        save_food_slots(user_id, new_food_slots)
+        st.rerun()
+
+# ===== 飲品時段設定 =====
+if modules.get("drink", True):
+    st.markdown("---")
+    st.subheader("🥤 飲品時段設定")
+    st.caption("勾選您每天應記錄飲品的時段，系統會據此偵測哪個時段漏填。")
+    st.caption("如果不勾選，系統只會偵測「整天有沒有填」。")
+
+    current_drink_slots = get_drink_slots(user_id)
+
+    col1, col2, col3, col4 = st.columns(4)
+    new_drink_slots = []
+
+    for i, slot in enumerate(FOOD_DRINK_SLOT_OPTIONS):
+        with [col1, col2, col3, col4][i]:
+            checked = st.checkbox(
+                slot,
+                value=(slot in current_drink_slots),
+                key=f"drink_slot_{slot}"
+            )
+            if checked:
+                new_drink_slots.append(slot)
+
+    if sorted(new_drink_slots) != sorted(current_drink_slots):
+        save_drink_slots(user_id, new_drink_slots)
         st.rerun()
 
 # ===== 帳號管理 =====
@@ -146,7 +220,7 @@ with st.expander("🗑️ 刪除帳號"):
 
 
 st.markdown("---")
-st.subheader("飲食紀錄、運動紀錄")
+st.subheader("運動紀錄")
 st.info("功能開發中...")
 
 

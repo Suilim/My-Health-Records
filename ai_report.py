@@ -324,6 +324,8 @@ def prepare_data_for_ai(user_id: str, start_date: date, end_date: date,
         "life": "Life",
         "symptom": "Symptom",
         "sleep": "Sleep",
+        "food": "Food",
+        "drink": "Drink",
     }
 
     # 一次取出所有模組的原始資料
@@ -390,10 +392,10 @@ def generate_report_with_gemini(user_name: str, data_context: str,
 
     prompt = f"""你是一位專業醫療助理，請根據以下健康紀錄，撰寫一份給醫師閱覽的健康狀況報告。
 
-使用者：{user_name}
+使用者姓名：{user_name}（請勿推測性別，全程以「{user_name}」稱呼，不使用先生、女士、他、她等詞）
 紀錄期間：{start_date.strftime("%Y年%m月%d日")} 至 {end_date.strftime("%Y年%m月%d日")}
 
-健康紀錄資料（以週為單位）：
+詳細健康紀錄資料（以週為單位）：
 ---
 {data_context}
 ---
@@ -420,16 +422,62 @@ def generate_report_with_gemini(user_name: str, data_context: str,
     return response.text
 
 
+def extract_section(report_text: str, section_name: str) -> str:
+    """
+    從報告中提取特定章節。
+    section_name: "跨週關聯分析" 或 "整體觀察"
+    """
+    lines = report_text.split("\n")
+    section_lines = []
+    in_section = False
+    found_section = False
+
+    for line in lines:
+        # 檢查是否為目標章節標題
+        if f"## {section_name}" in line:
+            in_section = True
+            found_section = True
+            section_lines.append(line)
+            continue
+
+        # 如果在目標章節中，檢查是否遇到新章節
+        if in_section:
+            if line.startswith("## ") and section_name not in line:
+                # 遇到新章節，結束當前章節
+                break
+            section_lines.append(line)
+
+    if found_section:
+        return "\n".join(section_lines).strip()
+    return ""
+
+
 # ── Word 匯出 ─────────────────────────────────────────────
+
+def _add_paragraph_with_bold(doc, line: str, style=None):
+    """將含有 **text** 的行加入段落，正確處理粗體。"""
+    kwargs = {"style": style} if style else {}
+    p = doc.add_paragraph(**kwargs)
+    parts = line.split("**")
+    for i, part in enumerate(parts):
+        if part:
+            run = p.add_run(part)
+            run.bold = (i % 2 == 1)
+    return p
+
 
 def export_report_to_docx(report_text: str, user_name: str,
                            start_date: date, end_date: date) -> BytesIO:
     """將 markdown 格式報告轉成 Word 檔，回傳 BytesIO。"""
     doc = Document()
 
+    # 設定預設字型（使用跨平台通用字型）
+    from docx.oxml.ns import qn
     style = doc.styles["Normal"]
-    style.font.name = "微軟正黑體"
+    style.font.name = "Arial Unicode MS"
     style.font.size = Pt(11)
+    # 確保 East Asian 字型也套用
+    style.element.rPr.rFonts.set(qn("w:eastAsia"), "Arial Unicode MS")
 
     for line in report_text.split("\n"):
         line = line.rstrip()
@@ -441,22 +489,17 @@ def export_report_to_docx(report_text: str, user_name: str,
             doc.add_heading(line[3:], level=2)
         elif line.startswith("### "):
             doc.add_heading(line[4:], level=3)
-        elif line.startswith("**") and line.endswith("**"):
-            p = doc.add_paragraph()
-            run = p.add_run(line.strip("*"))
-            run.bold = True
         elif line.startswith("- ") or line.startswith("* "):
-            doc.add_paragraph(line[2:], style="List Bullet")
+            content = line[2:]
+            if "**" in content:
+                _add_paragraph_with_bold(doc, content, style="List Bullet")
+            else:
+                doc.add_paragraph(content, style="List Bullet")
         elif line == "":
             doc.add_paragraph("")
         else:
             if "**" in line:
-                p = doc.add_paragraph()
-                parts = line.split("**")
-                for i, part in enumerate(parts):
-                    run = p.add_run(part)
-                    if i % 2 == 1:
-                        run.bold = True
+                _add_paragraph_with_bold(doc, line)
             else:
                 doc.add_paragraph(line)
 

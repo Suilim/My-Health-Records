@@ -65,6 +65,10 @@ CHART_COLUMNS = {
         "columns": {},
         "chart_type": "sleep",
     },
+    "Drink": {
+        "columns": {},
+        "chart_type": "water",
+    },
 }
 
 
@@ -471,6 +475,68 @@ def create_sleep_charts(records):
     )
 
     return fig_dur, fig_q
+
+
+def create_water_intake_chart(records):
+    """
+    飲水紀錄：每日白開水攝取杯數折線圖
+    只統計 drinkname == "水" 的紀錄
+    """
+    if not records:
+        return None
+
+    # 過濾並統計白開水
+    water_records = [r for r in records if r.get("drinkname", "").strip() == "水"]
+    if not water_records:
+        return None
+
+    # 按日期統計杯數
+    daily_water = {}
+    for r in water_records:
+        dt = _parse_filltime(r.get("filltime", ""))
+        if dt is None:
+            continue
+        date_str = dt.strftime("%Y-%m-%d")
+        cups = float(r.get("cups", 0))
+        if date_str not in daily_water:
+            daily_water[date_str] = 0
+        daily_water[date_str] += cups
+
+    if not daily_water:
+        return None
+
+    # 轉為 DataFrame
+    dates = sorted(daily_water.keys())
+    cups_list = [daily_water[d] for d in dates]
+
+    # 繪製折線圖
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=dates,
+        y=cups_list,
+        mode='lines+markers',
+        name="水杯數",
+        line=dict(width=3, color="#1E90FF"),
+        marker=dict(size=8),
+        fill='tozeroy',  # 填充下方區域
+        hovertemplate="<b>%{x}</b><br>白開水: %{y} 杯<extra></extra>"
+    ))
+
+    # 建議參考線：每天 8 杯
+    if len(dates) > 0:
+        fig.add_hline(y=8, line_dash="dash", line_color="green", annotation_text="建議 8 杯/天", annotation_position="top right")
+
+    fig.update_layout(
+        title="🥤 每日白開水攝取量",
+        xaxis_title="日期",
+        yaxis_title="杯數",
+        height=400,
+        margin=dict(l=20, r=20, t=40, b=20),
+        template="plotly_white",
+        hovermode="x unified"
+    )
+
+    return fig
 
 
 def _parse_filltime(filltime_str):

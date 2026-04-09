@@ -16,6 +16,7 @@ from plot_utils import (
     create_symptom_bar_chart,
     create_combined_chart,
     create_sleep_charts,
+    create_water_intake_chart,
 )
 
 st.set_page_config(
@@ -86,6 +87,8 @@ with tab1:
         "life": "🏃",
         "symptom": "🤧",
         "sleep": "😴",
+        "food": "🍚",
+        "drink": "🥤",
     }
 
     # ── 所有模組圖表堆疊顯示 ──
@@ -199,7 +202,14 @@ with tab1:
                     st.plotly_chart(fig_q, width='stretch')
                 if not fig_dur and not fig_q:
                     st.info("此期間無睡眠紀錄")
-            
+
+            elif chart_type == "water":
+                fig = create_water_intake_chart(records)
+                if fig:
+                    st.plotly_chart(fig, width='stretch')
+                else:
+                    st.info("此期間無白開水紀錄")
+
             st.markdown("---")
 
 # ==========================================
@@ -266,6 +276,7 @@ with tab2:
 MODULE_EMOJI = {
     "heartrate": "❤️", "weight": "⚖️", "sugar": "🩸", "temp": "🌡️",
     "drug": "💊", "life": "🏃", "symptom": "🤧", "sleep": "😴",
+    "food": "🍚", "drink": "🥤",
 }
 
 with tab3:
@@ -334,8 +345,11 @@ with tab3:
                 report_end = st.session_state["ai_report_end"]
 
                 st.markdown("---")
-                st.subheader("📄 報告預覽")
-                st.markdown(report_text)
+                st.subheader("📄 整體觀察")
+                from ai_report import extract_section
+                overall = extract_section(report_text, "整體觀察")
+                st.markdown(overall if overall else "（無法取得整體觀察章節）")
+                st.caption("完整報告（各週摘要、跨週關聯分析）請下載 Word 檔查看。")
                 st.markdown("---")
 
                 docx_buffer = export_report_to_docx(report_text, user_name, report_start, report_end)

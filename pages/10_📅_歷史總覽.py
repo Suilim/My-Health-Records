@@ -8,12 +8,15 @@ import streamlit as st
 from datetime import datetime
 from streamlit_calendar import calendar
 from calendar_utils import (
-    get_month_recorded_dates,
+    get_month_module_dates,
+    MODULE_COLORS,
+    MODULE_EMOJIS,
     get_day_all_records,
     format_record_for_display,
     get_module_display_name,
     get_module_emoji
 )
+from settings_utils import MODULE_NAMES
 
 # 頁面設定
 st.set_page_config(
@@ -36,44 +39,54 @@ if "selected_calendar_date" not in st.session_state:
     st.session_state.selected_calendar_date = None
 if "last_calendar_state" not in st.session_state:
     st.session_state.last_calendar_state = None
+if "hist_cal_year" not in st.session_state:
+    st.session_state.hist_cal_year = datetime.now().year
+if "hist_cal_month" not in st.session_state:
+    st.session_state.hist_cal_month = datetime.now().month
 
 # 標題
 st.title("📅 健康紀錄歷史總覽")
 st.write(f"**{user_name}** 的健康記錄")
 st.markdown("---")
 
-# 取得當前年月
-current_year = datetime.now().year
-current_month = datetime.now().month
+cal_year = st.session_state.hist_cal_year
+cal_month = st.session_state.hist_cal_month
 
-# 取得本月有記錄的日期
+# 取得該月各模組有記錄的日期
+if st.button("🔄 重新載入日曆", key="reload_calendar"):
+    get_month_module_dates.clear()
+    st.rerun()
+
 with st.spinner("載入日曆..."):
-    recorded_dates = get_month_recorded_dates(user_id, current_year, current_month)
+    module_dates = get_month_module_dates(user_id, cal_year, cal_month)
 
-# 建立日曆事件列表
+# 建立日曆事件列表（按模組分列）
 calendar_events = []
-for record_date in recorded_dates:
-    calendar_events.append({
-        "title": "📝 有記錄",
-        "start": record_date.strftime('%Y-%m-%d'),
-        "end": record_date.strftime('%Y-%m-%d'),
-        "backgroundColor": "#4CAF50",  # 綠色背景
-        "borderColor": "#4CAF50",
-        "textColor": "white"
-    })
+for module_key, dates in module_dates.items():
+    color = MODULE_COLORS.get(module_key, "#888888")
+    emoji = MODULE_EMOJIS.get(module_key, "📝")
+    name = MODULE_NAMES.get(module_key, module_key)
+    for d in dates:
+        calendar_events.append({
+            "title": f"{emoji} {name}",
+            "start": d.strftime('%Y-%m-%d'),
+            "backgroundColor": color,
+            "borderColor": color,
+            "textColor": "white",
+        })
 
 # 日曆選項配置
 calendar_options = {
-    "editable": False,  # 不可編輯
-    "selectable": True,  # 可選擇日期
+    "editable": False,
+    "selectable": True,
     "headerToolbar": {
         "left": "prev,next today",
         "center": "title",
         "right": "dayGridMonth,dayGridWeek,dayGridDay"
     },
     "initialView": "dayGridMonth",
-    "initialDate": datetime.now().strftime('%Y-%m-%d'),
-    "locale": "zh-tw",  # 繁體中文
+    "initialDate": f"{cal_year}-{cal_month:02d}-01",
+    "locale": "zh-tw",
     "buttonText": {
         "today": "今天",
         "month": "月",
@@ -97,7 +110,7 @@ custom_css = """
 
 # 顯示日曆
 st.markdown("### 📆 月曆檢視")
-st.info("💡 點擊有「📝 有記錄」的日期查看當天的詳細健康記錄")
+st.info("💡 點擊日期可查看當天的詳細健康記錄")
 
 calendar_state = calendar(
     events=calendar_events,
@@ -111,6 +124,50 @@ with st.expander("🔍 Debug 資訊", expanded=False):
     st.write("calendar_state:", calendar_state)
     st.write("selected_calendar_date:", st.session_state.selected_calendar_date)
     st.write("last_calendar_state:", st.session_state.last_calendar_state)
+    st.write(f"目前顯示月份: {cal_year}-{cal_month:02d}")
+    st.write("module_dates（各模組日期）:", {k: [str(d) for d in v] for k, v in module_dates.items()})
+    st.write("calendar_events 數量:", len(calendar_events))
+    # 直接查一個模組的原始資料確認格式
+    from firebase_utils import db
+    from settings_utils import MODULE_PATHS, get_enabled_modules
+    enabled = get_enabled_modules(user_id)
+    st.write("啟用模組:", enabled)
+    # 直接查詢不經過快取，確認原始資料
+    from datetime import date as date_cls
+    test_month_start = date_cls(cal_year, cal_month, 1)
+    test_month_end = date_cls(cal_year + (1 if cal_month == 12 else 0), (cal_month % 12) + 1, 1)
+    for mod in enabled:
+        node = MODULE_PATHS.get(mod)
+        if node:
+            raw = db.reference(f'{node}/{user_id}').get()
+            if raw:
+                found = []
+                for record in raw.values():
+                    if isinstance(record, dict):
+                        ft = record.get("filltime", "")
+                        if ft and ft[:7] == f"{cal_year}-{cal_month:02d}":
+                            found.append(ft[:10])
+                st.write(f"**{mod}**: 本月有 {len(found)} 筆 → {found[:5]}")
+            else:
+                st.write(f"**{mod}**: 無資料")
+
+# 偵測月份切換（從 eventsSet 或 datesSet 的 view.currentStart 讀取）
+if calendar_state:
+    view = None
+    if calendar_state.get("eventsSet"):
+        view = calendar_state["eventsSet"].get("view", {})
+    elif calendar_state.get("datesSet"):
+        view = calendar_state["datesSet"].get("view", {})
+    if view:
+        current_start = view.get("currentStart", "")
+        if current_start:
+            from datetime import timedelta
+            mid_date = datetime.strptime(current_start[:10], "%Y-%m-%d") + timedelta(days=7)
+            new_year, new_month = mid_date.year, mid_date.month
+            if (new_year, new_month) != (cal_year, cal_month):
+                st.session_state.hist_cal_year = new_year
+                st.session_state.hist_cal_month = new_month
+                st.rerun()
 
 # 處理日曆點擊事件
 # 關鍵:只有當 calendar_state 發生變化時才處理(避免重複觸發)
@@ -186,18 +243,23 @@ else:
     # 未選擇日期時的統計資訊
     st.markdown("### 📊 本月統計")
 
-    if recorded_dates:
-        st.write(f"本月共有 **{len(recorded_dates)}** 天有健康記錄")
+    # 從 module_dates 合併出所有有記錄的日期
+    all_recorded_dates = set()
+    for dates in module_dates.values():
+        all_recorded_dates.update(dates)
+
+    if all_recorded_dates:
+        st.write(f"本月共有 **{len(all_recorded_dates)}** 天有健康記錄")
 
         # 顯示記錄日期列表
-        sorted_dates = sorted(recorded_dates, reverse=True)
+        sorted_dates = sorted(all_recorded_dates, reverse=True)
         date_list = ", ".join([d.strftime('%m/%d') for d in sorted_dates[:15]])
         if len(sorted_dates) > 15:
             date_list += f" ... (共 {len(sorted_dates)} 天)"
         st.write(f"記錄日期: {date_list}")
 
         # 計算連續記錄天數
-        sorted_dates_asc = sorted(recorded_dates)
+        sorted_dates_asc = sorted(all_recorded_dates)
         max_streak = 1
         current_streak = 1
 

@@ -10,11 +10,16 @@ MODULE_NAMES = {
     "drug": "用藥",
     "life": "生活紀錄",
     "symptom": "不舒服的地方",
-    "sleep": "睡眠"
+    "sleep": "睡眠",
+    "food": "飲食",
+    "drink": "飲品"
 }
 
 # 用藥時段選項
 DRUG_SLOT_OPTIONS = ["早", "午", "晚", "睡前"]
+
+# 飲食與飲品時段選項
+FOOD_DRINK_SLOT_OPTIONS = ["早", "午", "晚", "點心"]
 
 # 模組對應的 Firebase 路徑
 MODULE_PATHS = {
@@ -25,7 +30,9 @@ MODULE_PATHS = {
     "drug": "Drug",
     "life": "Life",
     "symptom": "Symptom",
-    "sleep": "Sleep"
+    "sleep": "Sleep",
+    "food": "Food",
+    "drink": "Drink"
 }
 
 
@@ -43,7 +50,11 @@ def get_user_settings(user_id: str) -> dict:
             "sugar": True,
             "temp": True,
             "drug": True,
-            "life": True
+            "life": True,
+            "symptom": True,
+            "sleep": True,
+            "food": True,
+            "drink": True
         }
     }
 
@@ -78,6 +89,18 @@ def update_reminder_setting(user_id: str, key: str, value):
     ref.set(value)
 
 
+def get_calendar_enabled(user_id: str) -> bool:
+    """取得日曆總覽是否啟用"""
+    ref = db.reference(f"Settings/{user_id}/calendar_enabled")
+    val = ref.get()
+    return val if val is not None else False
+
+
+def set_calendar_enabled(user_id: str, enabled: bool):
+    """設定日曆總覽啟用狀態"""
+    db.reference(f"Settings/{user_id}").update({"calendar_enabled": enabled})
+
+
 def get_drug_slots(user_id: str) -> list:
     """取得用戶設定的用藥時段組合，回傳已勾選的時段列表如 ["早", "晚"]，未設定回傳 []"""
     ref = db.reference(f"Settings/{user_id}/drug_slots")
@@ -91,6 +114,38 @@ def save_drug_slots(user_id: str, selected_slots: list):
     """儲存用戶的用藥時段組合"""
     ref = db.reference(f"Settings/{user_id}/drug_slots")
     slots_dict = {slot: (slot in selected_slots) for slot in DRUG_SLOT_OPTIONS}
+    ref.set(slots_dict)
+
+
+def get_food_slots(user_id: str) -> list:
+    """取得用戶設定的飲食時段組合，回傳已勾選的時段列表如 ["早", "晚"]，未設定回傳 []"""
+    ref = db.reference(f"Settings/{user_id}/food_slots")
+    slots = ref.get()
+    if slots is None:
+        return []
+    return [slot for slot in FOOD_DRINK_SLOT_OPTIONS if slots.get(slot, False)]
+
+
+def save_food_slots(user_id: str, selected_slots: list):
+    """儲存用戶的飲食時段組合"""
+    ref = db.reference(f"Settings/{user_id}/food_slots")
+    slots_dict = {slot: (slot in selected_slots) for slot in FOOD_DRINK_SLOT_OPTIONS}
+    ref.set(slots_dict)
+
+
+def get_drink_slots(user_id: str) -> list:
+    """取得用戶設定的飲品時段組合，回傳已勾選的時段列表如 ["早", "晚"]，未設定回傳 []"""
+    ref = db.reference(f"Settings/{user_id}/drink_slots")
+    slots = ref.get()
+    if slots is None:
+        return []
+    return [slot for slot in FOOD_DRINK_SLOT_OPTIONS if slots.get(slot, False)]
+
+
+def save_drink_slots(user_id: str, selected_slots: list):
+    """儲存用戶的飲品時段組合"""
+    ref = db.reference(f"Settings/{user_id}/drink_slots")
+    slots_dict = {slot: (slot in selected_slots) for slot in FOOD_DRINK_SLOT_OPTIONS}
     ref.set(slots_dict)
 
 
@@ -125,11 +180,11 @@ def get_recorded_dates(user_id: str, module_key: str) -> set:
     return dates
 
 
-def get_recorded_slots_by_date(user_id: str) -> dict:
-    """取得用藥模組中，每個日期已填寫的時段集合
+def get_recorded_slots_by_date(user_id: str, module_key: str = "drug") -> dict:
+    """取得指定模組中，每個日期已填寫的時段集合
     回傳: {"2024-01-15": {"早", "晚"}, ...}
     """
-    records = get_records_for_module(user_id, "drug")
+    records = get_records_for_module(user_id, module_key)
     date_slots = {}
     for filltime, record_data in records.items():
         date_part = filltime.split(" ")[0]
@@ -222,7 +277,81 @@ def get_missing_drug_slots(user_id: str, days_to_check: int = 30) -> list:
     if start_date >= today:
         return []
 
-    recorded_slots = get_recorded_slots_by_date(user_id)
+    recorded_slots = get_recorded_slots_by_date(user_id, "drug")
+
+    missing = []
+    current = start_date
+    while current < today:
+        date_str = current.strftime("%Y-%m-%d")
+        filled_slots = recorded_slots.get(date_str, set())
+        for slot in required_slots:
+            if slot not in filled_slots:
+                missing.append({"date": date_str, "slot": slot})
+        current += timedelta(days=1)
+
+    return missing
+
+
+def get_missing_food_slots(user_id: str, days_to_check: int = 30) -> list:
+    """取得飲食模組中，漏填的 (日期, 時段) 列表
+    回傳: [{"date": "2024-01-15", "slot": "晚"}, ...]
+    如果使用者沒設定時段組合，回傳 []
+    """
+    required_slots = get_food_slots(user_id)
+    if not required_slots:
+        return []
+
+    first_date_str = get_first_record_date(user_id, "food")
+    if first_date_str is None:
+        return []
+
+    first_date = datetime.strptime(first_date_str, "%Y-%m-%d").date()
+    today = datetime.now().date()
+
+    check_start = today - timedelta(days=days_to_check)
+    start_date = max(first_date, check_start)
+
+    if start_date >= today:
+        return []
+
+    recorded_slots = get_recorded_slots_by_date(user_id, "food")
+
+    missing = []
+    current = start_date
+    while current < today:
+        date_str = current.strftime("%Y-%m-%d")
+        filled_slots = recorded_slots.get(date_str, set())
+        for slot in required_slots:
+            if slot not in filled_slots:
+                missing.append({"date": date_str, "slot": slot})
+        current += timedelta(days=1)
+
+    return missing
+
+
+def get_missing_drink_slots(user_id: str, days_to_check: int = 30) -> list:
+    """取得飲品模組中，漏填的 (日期, 時段) 列表
+    回傳: [{"date": "2024-01-15", "slot": "晚"}, ...]
+    如果使用者沒設定時段組合，回傳 []
+    """
+    required_slots = get_drink_slots(user_id)
+    if not required_slots:
+        return []
+
+    first_date_str = get_first_record_date(user_id, "drink")
+    if first_date_str is None:
+        return []
+
+    first_date = datetime.strptime(first_date_str, "%Y-%m-%d").date()
+    today = datetime.now().date()
+
+    check_start = today - timedelta(days=days_to_check)
+    start_date = max(first_date, check_start)
+
+    if start_date >= today:
+        return []
+
+    recorded_slots = get_recorded_slots_by_date(user_id, "drink")
 
     missing = []
     current = start_date
@@ -245,6 +374,9 @@ def get_all_missing_records(user_id: str, days_to_check: int = 30) -> dict:
         {
             "heartrate": ["2024-01-15", "2024-01-16"],
             "weight": ["2024-01-15"],
+            "drug": [{"date": "2024-01-15", "slot": "晚"}, ...],
+            "food": [{"date": "2024-01-15", "slot": "晚"}, ...],
+            "drink": [{"date": "2024-01-15", "slot": "晚"}, ...],
             ...
         }
     """
@@ -262,6 +394,16 @@ def get_all_missing_records(user_id: str, days_to_check: int = 30) -> dict:
                 missing = get_missing_dates(user_id, "drug", days_to_check)
                 if missing:
                     missing_records["drug"] = missing
+        elif module_key == "food":
+            # 飲食使用時段級別偵測
+            food_missing = get_missing_food_slots(user_id, days_to_check)
+            if food_missing:
+                missing_records["food"] = food_missing
+        elif module_key == "drink":
+            # 飲品使用時段級別偵測
+            drink_missing = get_missing_drink_slots(user_id, days_to_check)
+            if drink_missing:
+                missing_records["drink"] = drink_missing
         else:
             missing = get_missing_dates(user_id, module_key, days_to_check)
             if missing:
@@ -278,6 +420,9 @@ def check_today_records(user_id: str) -> dict:
         {
             "heartrate": True,   # 已填
             "weight": False,     # 未填
+            "drug": {...},       # 用藥可能是 dict（時段級別）或 bool
+            "food": {...},       # 飲食可能是 dict（時段級別）或 bool
+            "drink": {...},      # 飲品可能是 dict（時段級別）或 bool
             ...
         }
     """
@@ -289,7 +434,7 @@ def check_today_records(user_id: str) -> dict:
         if module_key == "drug":
             required_slots = get_drug_slots(user_id)
             if required_slots:
-                recorded_slots = get_recorded_slots_by_date(user_id)
+                recorded_slots = get_recorded_slots_by_date(user_id, "drug")
                 filled_today = recorded_slots.get(today_str, set())
                 missing_today = [s for s in required_slots if s not in filled_today]
                 if not missing_today:
@@ -300,8 +445,44 @@ def check_today_records(user_id: str) -> dict:
                         "missing": missing_today
                     }
             else:
-                recorded_dates = get_recorded_dates(user_id, module_key)
-                today_status[module_key] = today_str in recorded_dates
+                recorded_dates = get_recorded_dates(user_id, "drug")
+                today_status["drug"] = today_str in recorded_dates
+        elif module_key == "food":
+            required_slots = get_food_slots(user_id)
+            if required_slots:
+                # 有設定時段時，使用時段級別偵測
+                recorded_slots = get_recorded_slots_by_date(user_id, "food")
+                filled_today = recorded_slots.get(today_str, set())
+                missing_today = [s for s in required_slots if s not in filled_today]
+                if not missing_today:
+                    today_status["food"] = True
+                else:
+                    today_status["food"] = {
+                        "filled": [s for s in required_slots if s in filled_today],
+                        "missing": missing_today
+                    }
+            else:
+                # 沒設定時段時，用日期級別偵測
+                recorded_dates = get_recorded_dates(user_id, "food")
+                today_status["food"] = today_str in recorded_dates
+        elif module_key == "drink":
+            required_slots = get_drink_slots(user_id)
+            if required_slots:
+                # 有設定時段時，使用時段級別偵測
+                recorded_slots = get_recorded_slots_by_date(user_id, "drink")
+                filled_today = recorded_slots.get(today_str, set())
+                missing_today = [s for s in required_slots if s not in filled_today]
+                if not missing_today:
+                    today_status["drink"] = True
+                else:
+                    today_status["drink"] = {
+                        "filled": [s for s in required_slots if s in filled_today],
+                        "missing": missing_today
+                    }
+            else:
+                # 沒設定時段時，用日期級別偵測
+                recorded_dates = get_recorded_dates(user_id, "drink")
+                today_status["drink"] = today_str in recorded_dates
         else:
             recorded_dates = get_recorded_dates(user_id, module_key)
             today_status[module_key] = today_str in recorded_dates

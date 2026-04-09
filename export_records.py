@@ -60,6 +60,16 @@ DATA_TYPES = {
         "columns": ["id", "sleeptime", "waketime", "duration", "quality", "tags", "filltime"],
         "display_name": "睡眠"
     },
+    "Food": {
+        "node": "Food",
+        "columns": ["id", "foodname", "foodpieces", "eattime", "filltime"],
+        "display_name": "飲食"
+    },
+    "Drink": {
+        "node": "Drink",
+        "columns": ["id", "drinkname", "cups", "eattime", "filltime"],
+        "display_name": "飲品"
+    },
 }
 
 

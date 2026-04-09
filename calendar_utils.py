@@ -10,8 +10,34 @@ from datetime import datetime, date
 import streamlit as st
 import calendar
 
+MODULE_COLORS = {
+    "heartrate": "#C97B7B",  # 玫瑰紅（柔和）
+    "weight":    "#A89080",  # 暖棕
+    "sugar":     "#C47A9A",  # 藕粉
+    "temp":      "#C9A06A",  # 暖杏
+    "drug":      "#8E7AB5",  # 薰衣草紫
+    "life":      "#7AAF8A",  # 鼠尾草綠
+    "symptom":   "#C48A7A",  # 磚紅
+    "sleep":     "#7A99C4",  # 淺藍（與主色一致）
+    "food":      "#C4A060",  # 薑黃
+    "drink":     "#6AAFC4",  # 天藍
+}
 
-@st.cache_data(ttl=300)  # 快取 5 分鐘
+MODULE_EMOJIS = {
+    "heartrate": "❤️",
+    "weight":    "⚖️",
+    "sugar":     "🩸",
+    "temp":      "🌡️",
+    "drug":      "💊",
+    "life":      "🏃",
+    "symptom":   "🤧",
+    "sleep":     "😴",
+    "food":      "🍚",
+    "drink":     "🥤",
+}
+
+
+@st.cache_data(ttl=60)
 def get_month_recorded_dates(user_id: str, year: int, month: int) -> set:
     """
     取得指定月份有記錄的日期集合
@@ -44,24 +70,77 @@ def get_month_recorded_dates(user_id: str, year: int, month: int) -> set:
 
         try:
             ref = db.reference(f'{node_name}/{user_id}')
-            # shallow=True 只取 keys,不取值,大幅減少傳輸量
-            data = ref.get(shallow=True)
+            data = ref.get()
 
             if data:
-                # data 是 {filltime: True, ...} 的字典
-                for filltime_key in data.keys():
-                    record_date = _parse_filltime(filltime_key)
-                    if record_date:
-                        record_date_obj = record_date.date()
-                        # 檢查是否在指定月份內
-                        if month_start <= record_date_obj < month_end:
-                            recorded_dates.add(record_date_obj)
+                for record in data.values():
+                    if isinstance(record, dict):
+                        filltime = record.get("filltime", "")
+                    else:
+                        continue
+                    if not filltime:
+                        continue
+                    try:
+                        record_date_obj = datetime.strptime(filltime[:10], "%Y-%m-%d").date()
+                    except Exception:
+                        continue
+                    if month_start <= record_date_obj < month_end:
+                        recorded_dates.add(record_date_obj)
         except Exception as e:
             # 忽略錯誤,繼續處理其他模組
             print(f"讀取 {module_key} 時發生錯誤: {e}")
             continue
 
     return recorded_dates
+
+
+@st.cache_data(ttl=60)
+def get_month_module_dates(user_id: str, year: int, month: int) -> dict:
+    """
+    取得指定月份各模組有記錄的日期集合
+
+    回傳:
+        dict {module_key: set[date]} — 每個模組在該月有記錄的日期
+    """
+    result = {}
+    enabled_modules = get_enabled_modules(user_id)
+
+    month_start = date(year, month, 1)
+    if month == 12:
+        month_end = date(year + 1, 1, 1)
+    else:
+        month_end = date(year, month + 1, 1)
+
+    for module_key in enabled_modules:
+        node_name = MODULE_PATHS.get(module_key)
+        if not node_name:
+            continue
+        try:
+            ref = db.reference(f'{node_name}/{user_id}')
+            data = ref.get()
+            if data:
+                dates = set()
+                for record in data.values():
+                    # 從 record 的 filltime 欄位讀取（而非 key），避免 Firebase key 空格問題
+                    if isinstance(record, dict):
+                        filltime = record.get("filltime", "")
+                    else:
+                        continue
+                    if not filltime:
+                        continue
+                    try:
+                        record_date_obj = datetime.strptime(filltime[:10], "%Y-%m-%d").date()
+                    except Exception:
+                        continue
+                    if month_start <= record_date_obj < month_end:
+                        dates.add(record_date_obj)
+                if dates:
+                    result[module_key] = dates
+        except Exception as e:
+            print(f"讀取 {module_key} 時發生錯誤: {e}")
+            continue
+
+    return result
 
 
 def get_day_all_records(user_id: str, target_date: date) -> dict:

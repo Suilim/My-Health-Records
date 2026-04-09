@@ -50,7 +50,8 @@ def delete_user_all_data(user_id):
     """
     data_nodes = [
         "Sugar", "Weight", "BodyFat", "Muscle", "BMI",
-        "HeartRate", "Temp", "Drug", "Life", "Symptom","Sleep"
+        "HeartRate", "Temp", "Drug", "Life", "Symptom", "Sleep",
+        "Food", "Drink"
     ]
     for node in data_nodes:
         db.reference(f'{node}/{user_id}').delete()
@@ -455,4 +456,180 @@ def add_symptom_records_batch(user_id, symptoms, filltime=None):
         print(f"症狀紀錄寫入完成: {user_id} - {symptom['name']} / {symptom['duration']}")
 
     print(f"批次寫入完成，共 {len(symptoms)} 筆用藥紀錄")
+
+
+# ========== 飲食 ==========
+def add_food_record(user_id, food_name, food_pieces, eat_time, filltime=None):
+    """
+    新增食物紀錄
+    路徑: Food/{userId}/{filltime}
+
+    參數:
+        food_name: 食物名稱
+        food_pieces: 份量（份）
+        eat_time: 進食時間（早/午/晚/點心）
+    """
+    if filltime is None:
+        filltime = _get_current_filltime()
+
+    ref = db.reference(f'Food/{user_id}/{filltime}')
+    ref.set({
+        "id": str(user_id),
+        "foodname": str(food_name),
+        "foodpieces": str(food_pieces),
+        "eattime": str(eat_time),
+        "filltime": str(filltime)
+    })
+    print(f"食物紀錄寫入完成: {user_id} - {food_name} x {food_pieces} 份")
+
+
+def update_food_record(user_id, filltime, food_name, food_pieces, eat_time):
+    """
+    更新食物紀錄
+    路徑: Food/{userId}/{filltime}
+    """
+    ref = db.reference(f'Food/{user_id}/{filltime}')
+    ref.update({
+        "foodname": str(food_name),
+        "foodpieces": str(food_pieces),
+        "eattime": str(eat_time)
+    })
+    print(f"食物紀錄更新完成: {user_id} - {food_name}")
+
+
+def delete_food_record(user_id, filltime):
+    """
+    刪除食物紀錄
+    路徑: Food/{userId}/{filltime}
+    """
+    ref = db.reference(f'Food/{user_id}/{filltime}')
+    ref.delete()
+    print(f"食物紀錄刪除完成: {user_id} - {filltime}")
+
+
+def add_food_records_batch(user_id, foods, filltime=None):
+    """
+    批次新增多筆食物紀錄（同一時間點）
+    路徑: Food/{userId}/{filltime}:XX (自動加秒數避免衝突)
+
+    參數:
+        user_id: 使用者ID
+        foods: list of dict，每個 dict 包含:
+            - name: 食物名稱
+            - pieces: 份量（份）
+            - eattime: 進食時間 (早/午/晚/點心)
+        filltime: 填寫時間（可選，預設當前時間）
+
+    範例:
+        add_food_records_batch("A001", [
+            {"name": "白飯", "pieces": 1, "eattime": "早"},
+            {"name": "蛋", "pieces": 1, "eattime": "早"},
+        ])
+    """
+    if filltime is None:
+        filltime = _get_current_filltime()
+
+    for i, food in enumerate(foods):
+        # 加上秒數避免 key 衝突
+        unique_filltime = f"{filltime}:{i:02d}"
+
+        ref = db.reference(f'Food/{user_id}/{unique_filltime}')
+        ref.set({
+            "id": str(user_id),
+            "foodname": str(food["name"]),
+            "foodpieces": str(food["pieces"]),
+            "eattime": str(food["eattime"]),
+            "filltime": str(unique_filltime)
+        })
+        print(f"食物紀錄寫入完成: {user_id} - {food['name']} x {food['pieces']} 份")
+
+    print(f"批次寫入完成，共 {len(foods)} 筆食物紀錄")
+
+
+# ========== 飲品 ==========
+def add_drink_record(user_id, drink_name, cups, eat_time, filltime=None):
+    """
+    新增飲品紀錄
+    路徑: Drink/{userId}/{filltime}
+
+    參數:
+        drink_name: 飲品名稱（如「白開水」、「咖啡」等）
+        cups: 杯數（數字）
+        eat_time: 進食時間（早/午/晚/點心）
+    """
+    if filltime is None:
+        filltime = _get_current_filltime()
+
+    ref = db.reference(f'Drink/{user_id}/{filltime}')
+    ref.set({
+        "id": str(user_id),
+        "drinkname": str(drink_name),
+        "cups": str(cups),
+        "eattime": str(eat_time),
+        "filltime": str(filltime)
+    })
+    print(f"飲品紀錄寫入完成: {user_id} - {drink_name} {cups} 杯")
+
+
+def update_drink_record(user_id, filltime, drink_name, cups, eat_time):
+    """
+    更新飲品紀錄
+    路徑: Drink/{userId}/{filltime}
+    """
+    ref = db.reference(f'Drink/{user_id}/{filltime}')
+    ref.update({
+        "drinkname": str(drink_name),
+        "cups": str(cups),
+        "eattime": str(eat_time)
+    })
+    print(f"飲品紀錄更新完成: {user_id} - {drink_name}")
+
+
+def delete_drink_record(user_id, filltime):
+    """
+    刪除飲品紀錄
+    路徑: Drink/{userId}/{filltime}
+    """
+    ref = db.reference(f'Drink/{user_id}/{filltime}')
+    ref.delete()
+    print(f"飲品紀錄刪除完成: {user_id} - {filltime}")
+
+
+def add_drink_records_batch(user_id, drinks, filltime=None):
+    """
+    批次新增多筆飲品紀錄（同一時間點）
+    路徑: Drink/{userId}/{filltime}:XX (自動加秒數避免衝突)
+
+    參數:
+        user_id: 使用者ID
+        drinks: list of dict，每個 dict 包含:
+            - name: 飲品名稱
+            - cups: 杯數（數字）
+            - eattime: 進食時間 (早/午/晚/點心)
+        filltime: 填寫時間（可選，預設當前時間）
+
+    範例:
+        add_drink_records_batch("A001", [
+            {"name": "白開水", "cups": 2, "eattime": "早"},
+            {"name": "咖啡", "cups": 1, "eattime": "午"},
+        ])
+    """
+    if filltime is None:
+        filltime = _get_current_filltime()
+
+    for i, drink in enumerate(drinks):
+        # 加上秒數避免 key 衝突
+        unique_filltime = f"{filltime}:{i:02d}"
+
+        ref = db.reference(f'Drink/{user_id}/{unique_filltime}')
+        ref.set({
+            "id": str(user_id),
+            "drinkname": str(drink["name"]),
+            "cups": str(drink["cups"]),
+            "eattime": str(drink["eattime"]),
+            "filltime": str(unique_filltime)
+        })
+        print(f"飲品紀錄寫入完成: {user_id} - {drink['name']} {drink['cups']} 杯")
+
+    print(f"批次寫入完成，共 {len(drinks)} 筆飲品紀錄")
 

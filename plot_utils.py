@@ -5,6 +5,12 @@ from datetime import datetime
 from export_records import DATA_TYPES
 
 
+def disable_fig_interaction(fig):
+    """停用圖表所有拖曳/縮放互動，只保留 hover。"""
+    fig.update_layout(dragmode=False)
+    return fig
+
+
 # 各模組要繪製的數值欄位與設定
 CHART_COLUMNS = {
     "HeartRate": {
@@ -170,7 +176,7 @@ def create_plotly_line_chart(df, data_type):
     fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#eee')
     fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#eee')
 
-    return fig
+    return disable_fig_interaction(fig)
 
 
 def create_combined_chart(df, data_type, drug_records, user_drug_slots=None):
@@ -217,7 +223,7 @@ def create_combined_chart(df, data_type, drug_records, user_drug_slots=None):
         legend=dict(orientation="h", y=1.1)
     )
 
-    return fig
+    return disable_fig_interaction(fig)
 
 
 def create_plot_line_chart(df, data_type):
@@ -298,8 +304,8 @@ def create_drug_heatmap_chart(records, start_date, end_date, user_drug_slots=Non
         margin=dict(l=20, r=20, t=40, b=20),
         xaxis_type='category' # 確保日期顯示完整
     )
-    
-    return fig
+
+    return disable_fig_interaction(fig)
 
 
 def create_emotion_bar_chart(records):
@@ -341,8 +347,8 @@ def create_emotion_bar_chart(records):
         margin=dict(l=20, r=20, t=40, b=20),
         height=300
     )
-    
-    return fig
+
+    return disable_fig_interaction(fig)
 
 
 def get_summary_stats(df):
@@ -400,7 +406,7 @@ def create_symptom_bar_chart(records):
         margin=dict(l=20, r=20, t=40, b=20),
         height=300
     )
-    return fig
+    return disable_fig_interaction(fig)
 
 
 def create_sleep_charts(records):
@@ -474,7 +480,7 @@ def create_sleep_charts(records):
         template="plotly_white"
     )
 
-    return fig_dur, fig_q
+    return disable_fig_interaction(fig_dur), disable_fig_interaction(fig_q)
 
 
 def create_water_intake_chart(records):
@@ -536,7 +542,7 @@ def create_water_intake_chart(records):
         hovermode="x unified"
     )
 
-    return fig
+    return disable_fig_interaction(fig)
 
 
 def _parse_filltime(filltime_str):

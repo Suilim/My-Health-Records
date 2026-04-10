@@ -146,7 +146,7 @@ with tab1:
                                     )
                         fig = create_combined_chart(df, node, [], None)
                         if fig:
-                            st.plotly_chart(fig, width='stretch')
+                            st.plotly_chart(fig, width='stretch', config={"displayModeBar": True, "modeBarButtonsToRemove": ["zoom2d","pan2d","select2d","lasso2d","zoomIn2d","zoomOut2d","autoScale2d","resetScale2d","hoverClosestCartesian","hoverCompareCartesian","toggleSpikelines"], "displaylogo": False, "toImageButtonOptions": {"format": "png", "filename": "健康圖表", "title": "下載圖片"}})
                 else:
                     df = records_to_dataframe(records, firebase_node)
                     if df is not None and not df.empty:
@@ -167,27 +167,27 @@ with tab1:
                                     )
                         fig = create_combined_chart(df, firebase_node, [], None)
                         if fig:
-                            st.plotly_chart(fig, width='stretch')
+                            st.plotly_chart(fig, width='stretch', config={"displayModeBar": True, "modeBarButtonsToRemove": ["zoom2d","pan2d","select2d","lasso2d","zoomIn2d","zoomOut2d","autoScale2d","resetScale2d","hoverClosestCartesian","hoverCompareCartesian","toggleSpikelines"], "displaylogo": False, "toImageButtonOptions": {"format": "png", "filename": "健康圖表", "title": "下載圖片"}})
 
             elif chart_type == "drug":
                 user_drug_slots = get_drug_slots(user_id)
                 fig = create_drug_heatmap_chart(records, start_date, end_date, user_drug_slots or None)
                 if fig:
-                    st.plotly_chart(fig, width='stretch')
+                    st.plotly_chart(fig, width='stretch', config={"displayModeBar": True, "modeBarButtonsToRemove": ["zoom2d","pan2d","select2d","lasso2d","zoomIn2d","zoomOut2d","autoScale2d","resetScale2d","hoverClosestCartesian","hoverCompareCartesian","toggleSpikelines"], "displaylogo": False, "toImageButtonOptions": {"format": "png", "filename": "健康圖表", "title": "下載圖片"}})
                 else:
                     st.info("此期間無用藥紀錄")
 
             elif chart_type == "life":
                 fig = create_emotion_bar_chart(records)
                 if fig:
-                    st.plotly_chart(fig, width='stretch')
+                    st.plotly_chart(fig, width='stretch', config={"displayModeBar": True, "modeBarButtonsToRemove": ["zoom2d","pan2d","select2d","lasso2d","zoomIn2d","zoomOut2d","autoScale2d","resetScale2d","hoverClosestCartesian","hoverCompareCartesian","toggleSpikelines"], "displaylogo": False, "toImageButtonOptions": {"format": "png", "filename": "健康圖表", "title": "下載圖片"}})
                 else:
                     st.info("此期間無情緒紀錄")
 
             elif chart_type == "symptom":
                 fig = create_symptom_bar_chart(records)
                 if fig:
-                    st.plotly_chart(fig, width='stretch')
+                    st.plotly_chart(fig, width='stretch', config={"displayModeBar": True, "modeBarButtonsToRemove": ["zoom2d","pan2d","select2d","lasso2d","zoomIn2d","zoomOut2d","autoScale2d","resetScale2d","hoverClosestCartesian","hoverCompareCartesian","toggleSpikelines"], "displaylogo": False, "toImageButtonOptions": {"format": "png", "filename": "健康圖表", "title": "下載圖片"}})
                     # 顯示本期總筆數（排除無症狀標記）
                     real_count = sum(1 for r in records if r.get("symptomname", "") != "（無症狀）")
                     st.caption(f"本期共記錄 {real_count} 筆不舒服紀錄")
@@ -197,16 +197,16 @@ with tab1:
             elif chart_type == "sleep":
                 fig_dur, fig_q = create_sleep_charts(records)
                 if fig_dur:
-                    st.plotly_chart(fig_dur, width='stretch')
+                    st.plotly_chart(fig_dur, width='stretch', config={"displayModeBar": True, "modeBarButtonsToRemove": ["zoom2d","pan2d","select2d","lasso2d","zoomIn2d","zoomOut2d","autoScale2d","resetScale2d","hoverClosestCartesian","hoverCompareCartesian","toggleSpikelines"], "displaylogo": False, "toImageButtonOptions": {"format": "png", "filename": "健康圖表", "title": "下載圖片"}})
                 if fig_q:
-                    st.plotly_chart(fig_q, width='stretch')
+                    st.plotly_chart(fig_q, width='stretch', config={"displayModeBar": True, "modeBarButtonsToRemove": ["zoom2d","pan2d","select2d","lasso2d","zoomIn2d","zoomOut2d","autoScale2d","resetScale2d","hoverClosestCartesian","hoverCompareCartesian","toggleSpikelines"], "displaylogo": False, "toImageButtonOptions": {"format": "png", "filename": "健康圖表", "title": "下載圖片"}})
                 if not fig_dur and not fig_q:
                     st.info("此期間無睡眠紀錄")
 
             elif chart_type == "water":
                 fig = create_water_intake_chart(records)
                 if fig:
-                    st.plotly_chart(fig, width='stretch')
+                    st.plotly_chart(fig, width='stretch', config={"displayModeBar": True, "modeBarButtonsToRemove": ["zoom2d","pan2d","select2d","lasso2d","zoomIn2d","zoomOut2d","autoScale2d","resetScale2d","hoverClosestCartesian","hoverCompareCartesian","toggleSpikelines"], "displaylogo": False, "toImageButtonOptions": {"format": "png", "filename": "健康圖表", "title": "下載圖片"}})
                 else:
                     st.info("此期間無白開水紀錄")
 

@@ -28,6 +28,9 @@ if not st.session_state.inst_auth:
             st.rerun()
         else:
             st.error("密碼錯誤，請重新輸入。")
+    st.markdown("---")
+    if st.button("🏠 回到登入頁", use_container_width=True):
+        st.switch_page("app.py")
     st.stop()
 
 

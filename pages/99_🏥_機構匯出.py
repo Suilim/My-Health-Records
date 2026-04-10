@@ -22,7 +22,8 @@ if not st.session_state.inst_auth:
     st.markdown("請輸入機構密碼以繼續。")
     pwd = st.text_input("密碼", type="password", key="inst_pwd_input")
     if st.button("登入", use_container_width=True):
-        if pwd == get_institution_password():
+        stored = get_institution_password()
+        if pwd == str(stored):
             st.session_state.inst_auth = True
             st.rerun()
         else:

@@ -109,6 +109,15 @@ def login_page():
             st.session_state.show_add_user = True
             st.rerun()
 
+        # 機構入口（低調隱藏）
+        st.markdown(
+            '<div style="text-align:center;margin-top:16px;">'
+            '<a href="/機構匯出" target="_self" '
+            'style="color:#CCCCCC;font-size:12px;text-decoration:none;">機構入口</a>'
+            '</div>',
+            unsafe_allow_html=True
+        )
+
     # 顯示新增使用者表單
     elif st.session_state.show_add_user:
         st.subheader("➕ 新增使用者")
@@ -419,15 +428,6 @@ def main_menu():
             if key not in ["logged_in", "user_id", "user_name", "user_nickname"]:
                 del st.session_state[key]
         st.rerun()
-
-    # ==== 機構入口（低調隱藏） ====
-    st.markdown(
-        '<div style="text-align:center;margin-top:24px;">'
-        '<a href="/機構匯出" target="_self" '
-        'style="color:#CCCCCC;font-size:12px;text-decoration:none;">機構入口</a>'
-        '</div>',
-        unsafe_allow_html=True
-    )
 
     bottom_nav("app")
 

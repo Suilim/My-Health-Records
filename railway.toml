@@ -1,2 +1,2 @@
 [deploy]
-startCommand = "mkdir -p .streamlit && echo \"$STREAMLIT_SECRETS\" > .streamlit/secrets.toml && echo '---secrets.toml content---' && cat .streamlit/secrets.toml && streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
+startCommand = "mkdir -p .streamlit && python3 -c \"import os; open('.streamlit/secrets.toml','w').write(os.environ['STREAMLIT_SECRETS'])\" && streamlit run app.py --server.port $PORT --server.address 0.0.0.0"

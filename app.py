@@ -420,6 +420,15 @@ def main_menu():
                 del st.session_state[key]
         st.rerun()
 
+    # ==== 機構入口（低調隱藏） ====
+    st.markdown(
+        '<div style="text-align:center;margin-top:24px;">'
+        '<a href="/機構匯出" target="_self" '
+        'style="color:#CCCCCC;font-size:12px;text-decoration:none;">機構入口</a>'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
     bottom_nav("app")
 
 # 主程式邏輯

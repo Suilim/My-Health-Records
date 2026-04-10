@@ -71,6 +71,8 @@ with tab1:
 
     st.markdown("---")
 
+    st.image("飲食參考.png", width=300)
+
     # ===== 食物區塊 =====
     st.markdown("**🍚 食物清單：**")
 

@@ -139,7 +139,7 @@ with tab1:
                 if is_editing:
                     # 編輯模式
                     edit_name = st.text_input("藥名", value=drug["name"], key=f"edit_drug_name_{i}")
-                    edit_pieces = st.number_input("數量", value=float(drug["pieces"]) if drug["pieces"] else 1.0, min_value=0.5, step=0.5, format="%.1f", key=f"edit_drug_pieces_{i}")
+                    edit_pieces = st.number_input("數量", value=float(drug["pieces"]) if drug["pieces"] else 1.0, min_value=0.0, step=0.25, format="%.2f", key=f"edit_drug_pieces_{i}")
                     col_save, col_cancel = st.columns(2)
                     with col_save:
                         if st.button("💾 儲存", key=f"save_drug_{i}", width='stretch', type="primary"):
@@ -172,7 +172,7 @@ with tab1:
     with col1:
         new_drug_name = st.text_input("新增藥物名稱", key="new_drug_name", placeholder="輸入藥名...")
     with col2:
-        new_drug_pieces = st.number_input("數量", value=1.0, min_value=0.5, step=0.5, format="%.1f", key="new_drug_pieces")
+        new_drug_pieces = st.number_input("數量", value=1.0, min_value=0.0, step=0.25, format="%.2f", key="new_drug_pieces")
     with col3:
         st.write("")  # 空白占位
         st.write("")
@@ -195,9 +195,9 @@ with tab1:
             if st.session_state.drug_list:
                 # 補填模式用指定日期 + 12:00，否則用當前時間
                 if is_backfill:
-                    save_filltime = f"{fill_date} 12:00"
+                    save_filltime = f"{fill_date} {datetime.now().strftime('%H:%M:%S')}"
                 else:
-                    save_filltime = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    save_filltime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 add_drug_records_batch(user_id, st.session_state.drug_list, filltime=save_filltime)
                 st.session_state.drug_list = []  # 清空清單
                 if "backfill_date" in st.session_state:
@@ -241,7 +241,8 @@ with tab2:
         # 依日期降序排列
         for date in sorted(records_by_date.keys(), reverse=True):
             with st.expander(f"📅 {date} ({len(records_by_date[date])} 筆)", expanded=(date == datetime.now().strftime("%Y-%m-%d"))):
-                for r in records_by_date[date]:
+                slot_order = {"早": 0, "午": 1, "晚": 2, "睡前": 3, "需要時": 4}
+                for r in sorted(records_by_date[date], key=lambda x: (slot_order.get(x.get("eattime", ""), 99), -float(x.get("drugpieces", 0) or 0))):
                     filltime = r["filltime"]
 
                     # 判斷是否在編輯模式
@@ -251,7 +252,7 @@ with tab2:
                         if is_editing:
                             # 編輯模式
                             edit_name = st.text_input("藥名", value=r["drugname"], key=f"edit_name_{filltime}", label_visibility="collapsed")
-                            edit_pieces = st.number_input("數量", value=float(r["drugpieces"]) if r["drugpieces"] else 1.0, min_value=0.5, step=0.5, format="%.1f", key=f"edit_pieces_{filltime}", label_visibility="collapsed")
+                            edit_pieces = st.number_input("數量", value=float(r["drugpieces"]) if r["drugpieces"] else 1.0, min_value=0.0, step=0.25, format="%.2f", key=f"edit_pieces_{filltime}", label_visibility="collapsed")
                             edit_eattime = st.selectbox("時段", ["早", "午", "晚", "睡前", "需要時"], index=["早", "午", "晚", "睡前", "需要時"].index(r["eattime"]) if r["eattime"] in ["早", "午", "晚", "睡前", "需要時"] else 0, key=f"edit_eattime_{filltime}", label_visibility="collapsed")
                             col_save, col_cancel = st.columns(2)
                             with col_save:

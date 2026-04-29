@@ -75,6 +75,10 @@ CHART_COLUMNS = {
         "columns": {},
         "chart_type": "water",
     },
+    "Food": {
+        "columns": {},
+        "chart_type": "food",
+    },
 }
 
 
@@ -483,6 +487,38 @@ def create_sleep_charts(records):
     return disable_fig_interaction(fig_dur), disable_fig_interaction(fig_q)
 
 
+def create_food_slots_chart(records):
+    """
+    食物紀錄：食物品項出現頻率長條圖
+    """
+    if not records:
+        return None
+
+    names = [r.get("foodname", "").strip() for r in records if r.get("foodname", "").strip()]
+    if not names:
+        return None
+
+    counts = pd.Series(names).value_counts().reset_index()
+    counts.columns = ["食物", "次數"]
+
+    fig = px.bar(
+        counts,
+        x="食物",
+        y="次數",
+        color="食物",
+        text="次數",
+        title="食物出現頻率"
+    )
+    fig.update_traces(textposition='outside')
+    fig.update_layout(
+        showlegend=False,
+        margin=dict(l=20, r=20, t=40, b=20),
+        height=300
+    )
+
+    return disable_fig_interaction(fig)
+
+
 def create_water_intake_chart(records):
     """
     飲水紀錄：每日白開水攝取杯數折線圖
@@ -492,7 +528,8 @@ def create_water_intake_chart(records):
         return None
 
     # 過濾並統計白開水
-    water_records = [r for r in records if r.get("drinkname", "").strip() == "水"]
+    water_keywords = {"水", "開水", "白開水"}
+    water_records = [r for r in records if r.get("drinkname", "").strip() in water_keywords]
     if not water_records:
         return None
 

@@ -17,6 +17,7 @@ from plot_utils import (
     create_combined_chart,
     create_sleep_charts,
     create_water_intake_chart,
+    create_food_slots_chart,
 )
 
 st.set_page_config(
@@ -208,7 +209,14 @@ with tab1:
                 if fig:
                     st.plotly_chart(fig, width='stretch', config={"displayModeBar": True, "modeBarButtonsToRemove": ["zoom2d","pan2d","select2d","lasso2d","zoomIn2d","zoomOut2d","autoScale2d","resetScale2d","hoverClosestCartesian","hoverCompareCartesian","toggleSpikelines"], "displaylogo": False, "toImageButtonOptions": {"format": "png", "filename": "健康圖表", "title": "下載圖片"}})
                 else:
-                    st.info("此期間無白開水紀錄")
+                    st.info("此期間飲水紀錄")
+
+            elif chart_type == "food":
+                fig = create_food_slots_chart(records)
+                if fig:
+                    st.plotly_chart(fig, width='stretch', config={"displayModeBar": True, "modeBarButtonsToRemove": ["zoom2d","pan2d","select2d","lasso2d","zoomIn2d","zoomOut2d","autoScale2d","resetScale2d","hoverClosestCartesian","hoverCompareCartesian","toggleSpikelines"], "displaylogo": False, "toImageButtonOptions": {"format": "png", "filename": "健康圖表", "title": "下載圖片"}})
+                else:
+                    st.info("此期間無飲食紀錄")
 
             st.markdown("---")
 

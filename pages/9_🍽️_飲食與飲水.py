@@ -208,11 +208,10 @@ with tab1:
         save_disabled = len(st.session_state.food_list) == 0 and len(st.session_state.drink_list) == 0
         if st.button("✅ 儲存全部", width='stretch', type="primary", disabled=save_disabled):
             if st.session_state.food_list or st.session_state.drink_list:
-                # 補填模式用指定日期 + 12:00，否則用當前時間
                 if is_backfill:
-                    save_filltime = f"{fill_date} 12:00"
+                    save_filltime = f"{fill_date} {datetime.now().strftime('%H:%M:%S')}"
                 else:
-                    save_filltime = datetime.now().strftime("%Y-%m-%d %H:%M")
+                    save_filltime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
                 # 分別儲存食物和飲品
                 if st.session_state.food_list:
